@@ -1,0 +1,10 @@
+1|Fox_tn_LP_L|lateral parietal left
+2|Fox_LP_R|lateral parietal right
+3|Fox_FEF_L|Frontal Eye Fields left
+4|Fox_tp_FEF_R|Frontal Eye Fields right
+5|Fox_tp_IPS_L|intraparietal sulcus left
+6|Fox_IPS_R|intraparietal sulcus right
+7|Fox_tp_MT_L|middle temporal left
+8|Fox_MT_R|middle temporal right
+9|Fox_tn_MPF_C|medial prefrontal
+10|Fox_tn_PCC_C|precuneus
