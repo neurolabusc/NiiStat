@@ -17,4 +17,5 @@ Changes
  	-For voxelwise analyses, no longer crashes if voxel dimensions vary between subjects (images resliced to match first using nii_reslice_target)
  	-Added nii_mat2nii that extracts voxelwise image(s) from mat files (reversing nii_nii2mat)
  	-Previous versions would crash if asked to asked to transform data with z-skew > 1.96 and negative predictors (data translated to be positive prior to sqrt transform)
- 	
+ 17Oct2014
+ 	-uploaded to github
