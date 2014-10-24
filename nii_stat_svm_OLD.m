@@ -1,24 +1,4 @@
 function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data)
-
-    
-if numel(les_names) ~= size(les,2) %for correlation analyses
- les_matrix = [];
- n = 0;
- for i = 1:length(les_names)
-    for j = (i+1):length (les_names)
-       area_name = [les_names{i} '*' les_names{j}];
-       %fprintf('%s\n',area_name);
-       n = n+1;
-       les_matrix{n} = area_name; %#ok<AGROW>
-    end
- end
- les_names = les_matrix;
-end
-if numel(les_names) ~= size(les,2)
-    fprintf('%s error: number of feature names does not match number of features',mfilename);
-    return;
-end
-
 if ~exist('statname','var')
     statname = 'anonymous';
 end
@@ -52,20 +32,16 @@ end
 fprintf(fid,'%s\t', beh_name1);
 fprintf(fid,'\n');
 for i = 1:n_subj
-    if (std(les(i,:)) == 0) || ~isfinite(std(les(i,:)))
-        fprintf('WARNING: Skipping %s due to bogus data\n', subj_data{i}.filename);
+    if ~isempty('subj_data')
+       fprintf(fid,'%s\t',subj_data{i}.filename); 
     else
-        if ~isempty('subj_data')
-           fprintf(fid,'%s\t',subj_data{i}.filename); 
-        else
-            fprintf(fid,'%s\t',num2str(i));
-        end
-        for j = 1:numel(les_names)
-             fprintf(fid,'%g\t',les(i, j));
-        end
-        fprintf(fid,'%g\t',beh1(i));
-        fprintf(fid,'\n');
+        fprintf(fid,'%s\t',num2str(i));
     end
+    for j = 1:numel(les_names)
+         fprintf(fid,'%g\t',les(i, j));
+    end
+    fprintf(fid,'%g\t',beh1(i));
+    fprintf(fid,'\n');
 end
 fclose(fid);
 %end tabFileSub()

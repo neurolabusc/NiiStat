@@ -392,7 +392,7 @@ if roiIndex == 0 %voxelwise lesion analysis
             Interp = ~isBinSub(subj_data{i}.(ROIfield).dat); %interpolate continuous images, do not interpolate binary images
             fprintf('warning: reslicing %s to match dimensions of other images. Interpolation = %d\n',subj_data{i}.filename, Interp);
             [~, outimg] = nii_reslice_target(subj_data{i}.(ROIfield).hdr, subj_data{i}.(ROIfield).dat(:), subj_data{1}.(ROIfield).hdr, Interp) ;
-            subj_data{i}.(ROIfield).dat = outimg;
+            subj_data{i}.(ROIfield).dat = outimg; %#ok<AGROW>
             %fprintf('%d, %d\n',subj_data{i}.filename);
             
         end    
@@ -552,8 +552,9 @@ if sum(isnan(beh(:))) > 0
         end 
         if doSVM
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data);
+        else
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE);
         end
-        nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE);
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
 else
@@ -564,11 +565,9 @@ else
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM    
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data);
+    else
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE);
     end
-    
-    nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE);
-
-    
 end
 %end processMatSub()
 
