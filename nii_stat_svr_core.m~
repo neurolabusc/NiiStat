@@ -171,34 +171,22 @@ x = bsxfun(@rdivide,x,max(x,[],2)); %scale so range is 1
 % end
 %end columnUniqueThreshSub()
 
-function [good_dat, good_idx] = columnUniqueThreshSub(dat, minUnique)
-n_col = size(dat,2);
-good_idx=[];
-for col = 1:n_col    
+function x = columnUniqueThreshSub(x, minUnique)
+
+
+function x = columnUniqueThreshSub(x, minUnique)
+%removes columns that have fewer than minUnique different values
+% x = [ 1 2 3 3 5 6; 2 2 2 2 3 3]'; ->minUnique(3) -> [1 2 3 3 5 6]'
+n_col = size(x,2);
+good_idx=zeros(n_col,1);
+for c = size(x,2):-1:1    
     %how many items have the most frequent value
-    s = sum(dat(:,col) == mode(dat(:,col)));
-    if (size(dat,1) - s) >= minUnique
-        good_idx = [good_idx, col];  %#ok<AGROW>
+    s = sum(x(:,c) == mode(x(:,c)));
+    if (size(x,1) - s) < minUnique
+        x(:,c) = [];
     end
 end
-if numel(good_idx) ~= size(dat,2)
-     fprintf('%d columns of %d had at least %d items in the smaller class\n',numel(good_idx), n_col, minUnique);
+if n_col ~= size(x,2)
+     fprintf('%d columns of %d had at least %d items in the smaller class\n',size(x,2), n_col, minUnique);
 end
-good_dat = dat(:,good_idx);
 %end columnUniqueThreshSub()
-
-% function x = columnUniqueThreshSubOld(x, minUnique)
-% %removes columns that have fewer than minUnique different values
-% % x = [ 1 2 3 3 5 6; 2 2 2 2 3 3]'; ->minUnique(3) -> [1 2 3 3 5 6]'
-% n_col = size(x,2);
-% for c = size(x,2):-1:1    
-%     %how many items have the most frequent value
-%     s = sum(x(:,c) == mode(x(:,c)));
-%     if (size(x,1) - s) < minUnique
-%         x(:,c) = [];
-%     end
-% end
-% if n_col ~= size(x,2)
-%      fprintf('%d columns of %d had at least %d items in the smaller class\n',size(x,2), n_col, minUnique);
-% end
-% %end columnUniqueThreshSub()

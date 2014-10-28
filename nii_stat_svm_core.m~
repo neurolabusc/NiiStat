@@ -128,12 +128,15 @@ end %for each split
 if make_map
     mean_map = mean (map, 1);
     z_map = mean_map ./ std (mean_map);
-    if exist('good_idx','var')  %insert NaN for unused features
+    if exist('good_idx','var')
+        n_dim
         z_mapOK = zeros(n_dim,1);
         z_mapOK(:) = nan;
-        z_mapOK(good_idx) = z_map;
-        z_map = z_mapOK;
+        z_mapOK(good_idx) = zmap;
+        zmap = z_ma
+        error('x')
     end
+    error('y')
 else
     z_map = [];
 end
