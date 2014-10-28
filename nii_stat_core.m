@@ -486,8 +486,8 @@ end
 N = sum(obsVector(:)); %behavior = 1
 a = sum(bsxfun(@min,groupVector,obsVector));
 K = sum(groupVector,1);
-pL = fexact(a,M,K,N,'test','l','tail','l');
-pR = fexact(a,M,K,N,'test','l','tail','r');
+pL = fexactSub(a,M,K,N,'test','l','tail','l');
+pR = fexactSub(a,M,K,N,'test','l','tail','r');
 indexL = find(pL(:) < pR(:));
 p2z = @(p) -sqrt(2) * erfcinv(p*2);
 z = pR; %vector Z now probability of right tail
@@ -674,3 +674,132 @@ if ~isempty(permScores)
     thresh = min(permScores(:));
 end
 %permThreshHighSub()
+
+function [pval x K P xx fx pperm] = fexactSub( varargin )
+%FEXACT Fisher's exact test
+%p = fexact([1 1 1 1 0 0 0]',[1 1 1 0 0 0 0]','tail','r')
+%
+% Fisher's exact test is a statistical test used to compare binary outcomes
+% between two groups. For example, a laboratory test might be positive or negative
+% and we may be interested in knowing whether there is a difference in frequency of positive
+% results among people with a certain disease (cases) compared to those in healthy
+% (controls). The test is applicable whenever there are independent tests conducted on two
+% groups. A crosstable of results (pos/neg) and status (case/control) produces a 2x2 contingency
+% table shown below.
+%       cases  controls
+%  pos   a        c       K
+%  neg   b        d       -
+% total  N        -       M
+%
+% a,b,c,d are the numbers of positive and negative results for the cases
+% and controls. K, N, M are the row, column and grand totals.
+%
+% This function returns a pvalue against the hypothesis that the number of
+% positive cases (and by extension other cells in the table) observed or a more extreme 
+% distribution might have occured by chance given K, N,and M.
+%
+% usage
+%   p = fexact(X,y)
+%       y is a vetor of status (1=case/0=control). X is a MxP matrix of
+%       binary results (pos=1/neg=0). P can be very large for
+%       genotyping assays, each of which can be considered a different way
+%       to categorize the cases and controls.
+%
+%  p = fexact( a,M,K,N, options)
+%      M and N are constants described above. a and K are P-vectors. No checks for valid
+%      input are made.
+%
+%  [p a K C] = fexact(X,y);
+%       also returns vector a. a(i) is the upper left square of the contingency
+%       corresponding to the ith column of X crosstabulated by y. K is a
+%       vector containing a+b for the ith column of X.
+%       C is a lookup table for CDFs that can be used in subsequent calls
+%       to fexact to further improve performance.
+%       C( x(i)+1, K(i)+1) is the cdf for the tail specified in
+%       options. 
+%       NB. this lookup table is only for the given M and N values
+%
+%  p = fexact( a,M,K,N,C]
+%      C is a lookup table that improve performance. Intended to be
+%      used with permutation testing where 1000s of calls are made.
+%      the option "tail" is ignored if C is provided, as it implies
+%      whatever tail was used to generate them. 
+%
+%  p = fexact(..., 'options', values)
+%      options:
+%      tail  l(eft)','r(ight)', 'b(oth)'
+%            left tail tests a negative association. p( x<=a, M, K, N)
+%            right tail tests a positive association. p( x<=b, M, K, M-N)
+%            both (default) is either a positive or negative association.
+%            this is the sum from the left and right tails of the
+%            distribution including all x where p(x|M,K,N) is less than
+%            or equal p(a|M,K,N).
+%      perm  Q, where Q is an integer. Permutation testing when X has multiple Columns. 
+%             to correct for multiple testing. The entire set of tests is repeated Q*repsz
+%            times with permuted y variables. The reported p-values are 
+%            corrected for multiple tests by interpolating into the emprical 
+%            distribution of the minimum p-value obtained from each Q*repsz rounds .
+%            To use this option the X and y calling convention must be used
+%            (as opposed to (a,M,K,N,...) convention.
+%            and Q must be greater than 1.
+%      repsz S, where S is an integer. Used with the PERM option to specify 
+%            the number of replicates to compute at one time (default=100). 
+%            Larger S is faster but requires more memory. 
+%
+%
+% NOTES and LIMITATIONS:
+%      This function is extremely fast when doing multiple tests and is
+%      acceptable with a small number of tests. However, it uses large
+%      tracks of memory. On my 2Gb home Intel Core2 Quad Core Vista machine
+%      this function does 250,000 tests with 100 observations each in 0.10
+%      seconds. I run out of memory when I do more
+%
+% example
+%  x = unidrnd(2, 200, 1000)-1;
+%  y = unidrnd(2,200,1)-1;
+%  p = fexact( x, y );                  % generates p-values for 1000 tests in x
+%  p1 = fexact( x, y, 'perm', 10); % reports p-value relative to empirial
+%                                               % cdf, since these are randomly generated 
+%                                               % the values in p1 should be near  1
+%   
+% $Id: fexact.m 642 2012-06-11 18:25:47Z mboedigh $
+% Copyright 2012 Mike Boedigheimer
+% Amgen Inc.
+% Department of Computational Biology
+% mboedigh@amgen.com
+
+p = inputParser;
+p.addRequired('A');
+p.addOptional('y',[]);
+p.addOptional('K',[]);
+p.addOptional('N',[]);
+p.addOptional('C',[]);
+p.addOptional('tail', 'b', @(c)ismember( c, {'b','l','r'} ));
+p.addOptional('perm',  0, @(x) isnumeric(x)&isscalar(x));
+p.addOptional('repsz', 100, @(x) isnumeric(x)&isscalar(x));
+p.addOptional('test', 'f', @(c)ismember( c, {'f','l'} )); %CR: Fisher or Liebermeister test
+p.parse(varargin{:});
+P = p.Results.C;
+if isempty(p.Results.N)     % using fexact(X,y,options)
+    X = p.Results.A;
+    y = p.Results.y;
+    if (~islogical(y) && ~all( ismember( y, [0 1])) ) 
+        error('linstats:fexact:InvalidArgument', 'y must be in (0,1)' );
+    end
+    if (~islogical(X) && ~all( ismember( X(:), [0 1])) ) 
+        error('linstats:fexact:InvalidArgument', 'X must be in (0,1)' );
+    end
+
+    y = logical(y);
+    N = sum(y);           % number of cases
+    M = length(y);
+    K = sum(X,1)';
+    x = X'*sparse(y);  % in unofficial testing using timeit. This was faster than sum(X(y==1,:))
+    % and faster than sum(bsxfun(@eq,X,y))
+else % using fexact( a,M,K,N ...)
+    x = p.Results.A; 
+    M = p.Results.y;
+    N = p.Results.N;
+    K = p.Results.K;
+end
+%end fexactSub()
