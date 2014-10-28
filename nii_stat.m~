@@ -281,7 +281,7 @@ for i = 1:size(matnames,1)
             if (roiIndex > 0) && (~kAnalyzeCorrelationNotMean) && ~issubfieldSub(dat,subfield)
                 voxField = [deblank(kModalities(modalityIndex,:)) '.dat'];
                 if  issubfieldSub(dat,voxField) %we can generate ROI data from voxel data
-                    fprintf('Creating %s for %s\n',subfield,in_filename);
+                    fprintf('Creating %s for %s\n',in_filename);
                     %dat.(deblank(kModalities(modalityIndex,:))).hdr
                     roiName = deblank(kROIs(roiIndex,:)) ;
                     sn=[deblank(kModalities(modalityIndex,:)) '_'];
