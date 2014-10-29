@@ -82,7 +82,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'2000','0.01','2','4','1',''};
+        def = {'2000','0.01','2','0','1',''};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -298,6 +298,12 @@ for i = 1:size(matnames,1)
                 if regressBehav && isfield (dat.lesion, 'dat')
                     dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
                     subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
+                end
+                if idx == 1 
+                    vox = numel(subj_data{i}.(ROIfield).dat(:));
+                    vox = vox * size(matnames,1); %worst case scenario: all individuals have image data
+                    gb = (vox * 8)/ (1024^3); %doubles use 8-bytes
+                    fprintf('The imaging data will require %.3f gb of memory\n',gb);
                 end
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);

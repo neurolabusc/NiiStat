@@ -31,7 +31,8 @@ for j = 1:size(beh_names,2) %for each beahvioral variable
     beh_name1 = beh_names{j};
     beh1 = beh(:,j);
     fnm = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
-    nii_stat_svm_core(fnm, min(beh1(:)), 0.5+min(beh1(:)) );
+    nii_stat_svm_core(fnm); %do not specify thresholds: svm_core will select
+    %nii_stat_svm_core(fnm, min(beh1(:)), 0.5+min(beh1(:)) );
     %nii_stat_svm_core(fnm, min(beh1(:)), max(beh1(:)) );
 end
 diary off %stop logging text

@@ -64,13 +64,23 @@ if (min(class_labels) == max(class_labels))
     error('No variability in class labels (final column of file)');
 end
 if ~exist('thresholdHi','var') %if Excel file not specified, have user select one
-    answer = inputdlg({'Class1 no more than','Class2 no less than'}, sprintf('Threshold (input range %g..%g)',min(class_labels),max(class_labels)), 1,{num2str(min(class_labels)),num2str(max(class_labels))});
-    thresholdLo = str2double (cell2mat(answer(1)));
-    thresholdHi = str2double (cell2mat(answer(2)));
+    fprintf('Class values from %g..%g (median %g)\n',min(class_labels(:)), max(class_labels(:)), median(class_labels(:)));
+    mdn = median(class_labels(:));
+    if mdn > min(class_labels(:))
+        thresholdHi = mdn;
+        %thresholdLo = thresholdHi-eps;
+        thresholdLo = max(class_labels(class_labels < mdn));
+    else
+        thresholdLo = mdn;
+        thresholdHi = min(class_labels(class_labels > mdn));
+    end
+    %answer = inputdlg({'Class1 no more than','Class2 no less than'}, sprintf('Threshold (input range %g..%g)',min(class_labels),max(class_labels)), 1,{num2str(min(class_labels)),num2str(max(class_labels))});
+    %thresholdLo = str2double (cell2mat(answer(1)));
+    %thresholdHi = str2double (cell2mat(answer(2)));
 end
 %fprintf('Class labels range from %g to %g, values of %g or less will be group0, values of %g or more will be group1\n', min(class_labels), max(class_labels), thresholdLo, thresholdHi);
 %fprintf('Processing the command line: \n');
-fprintf(' %s (''%s'', %g, %g, %d, %d )\n', mfilename, xlsname, thresholdLo, thresholdHi, make_map, verbose);
+fprintf(' %s (''%s'', %g, %g );\n', mfilename, xlsname, thresholdLo, thresholdHi);
 
 [class_labels , data] = binarySub(class_labels, data, thresholdLo, thresholdHi);
 class1_idx = find (class_labels == 1)';
@@ -147,7 +157,7 @@ p = bipSub(acc*n_splits, n_splits, prob);
 fprintf('Observed %d in group0 and %d in group1 (prob = %g%%) with %d predictors\n', n0, n1,max(n0,n1)/(n0+n1), size(data,2));
 fprintf('BinomialProbality nHits= %g, nTotal= %g, IncidenceOfCommonClass= %g, p< %g\n', acc*n_splits, n_splits,prob, p);
 fprintf('Overall Accuracy %g (%g for group0, %g for group1)\n', acc, acc_per_class(2),acc_per_class(1));
-fprintf('Thresh0\t%d\tThresh1\t%d\tn0\t%d\tn1\t%d\tProb\t%g\tAcc\t%g\tAcc0\t%g\tAcc1\t%g\tp<\t%g\n',...
+fprintf('Thresh0\t%g\tThresh1\t%g\tn0\t%d\tn1\t%d\tProb\t%g\tAcc\t%g\tAcc0\t%g\tAcc1\t%g\tp<\t%g\n',...
     thresholdLo,thresholdHi,n0,n1,prob,acc,acc_per_class(2),acc_per_class(1),p);
 % ----- MAIN FUNCTION ENDS
 
