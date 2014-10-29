@@ -1,4 +1,4 @@
-function [labels, predicted_labels,z_map] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique)
+function [labels, predicted_labels,z_map] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear)
 % xlsname : file name to analyze
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
 %example
@@ -22,6 +22,13 @@ svmdir = [fileparts(which(mfilename))  filesep 'libsvm' filesep];
 if ~exist(svmdir,'file') 
     error('Unable to find utility scripts folder %s',svmdir);
 end
+if ~exist('islinear','var')
+    islinear = true;
+end
+if ~islinear
+    fprintf('Warning: please do not use map when conducting non-linear svr!');
+end
+
 addpath(svmdir); %make sure we can find the utility scripts
 %addpath c:/code/libsvm-3.11/matlab;
 [~,~,x] = fileparts(xlsname);
@@ -66,10 +73,18 @@ for subj = 1:n_subj
     %SVM = svmtrain (train_labels, train_data, '-s 3');
     %predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     if verbose
-        SVM = svmtrain (train_labels, train_data, '-s 3');
+        if islinear
+            SVM = svmtrain (train_labels, train_data, '-t 0 -s 3');
+        else
+            SVM = svmtrain (train_labels, train_data, '-t 2 -s 3');
+        end
         predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     else %if verbose else silent
-        [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-s 3'')');
+        if islinear
+           [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 0 -s 3'')'); %-t 0 = linear
+        else
+            [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 2 -s 3'')'); %-t 2 = RBF
+        end
         [~, predicted_labels(subj), ~, ~] = evalc ('svmpredict (labels(subj), data(subj, :), SVM)');
     end %if verbose else silent
     map (subj, :) = SVM.sv_coef' * SVM.SVs;

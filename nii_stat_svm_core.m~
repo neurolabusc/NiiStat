@@ -1,4 +1,4 @@
-function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, thresholdLo, thresholdHi, verbose, islinear)
+function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, thresholdLo, thresholdHi, make_map, verbose, islinear)
 %compute linear support vector machine for data
 % xlsname   : name of excel or tab delimted text file:
 %            -first row are column names
@@ -9,6 +9,7 @@ function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, thresholdLo, 
 %              example: if 2 then group 1 will be all samples of 2 or less
 % thresholdHi : criteria for classifying final column as class2
 %              example: if 3 then group 3 will be all samples of 3 or more
+% make_map  : generate weighting map
 % verbose : if true, libsvm generates a lot of messages
 %Example xlsname 
 % subjname	iv1	iv2	dv
@@ -27,6 +28,9 @@ if ~exist('xlsname','var') %if Excel file not specified, have user select one
    if isequal(file,0), return; end;
    xlsname=[pth file];
 end
+if ~exist('make_map','var') %make_map
+    make_map=false;
+end
 if ~exist('verbose','var') %vebosity not specified
     verbose=false;
 end
@@ -37,8 +41,8 @@ end
 if ~exist('islinear','var')
     islinear = true;
 end
-if ~islinear
-    fprintf('Warning: please do not use loading map when conducting non-linear svm!');
+if ~islinear && make_map
+    error('make_map only for linear analyses');
 end
 addpath(svmdir); %make sure we can find the utility scripts
 [~,~,x] = fileparts(xlsname);
@@ -132,29 +136,32 @@ for split = 1:n_splits
         [assignments, ~, ~] = svmpredict (test_labels', test_data', model);
     else %if verbose else silent
         if islinear
-           [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 0'')'); %-t 0 = linear
+           [~, model] = evalc ('svmtrain (train_labels, train_data, ''-t 0 -s 3'')'); %-t 0 = linear
         else
-            [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 2'')'); %-t 2 = RBF
+            [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 2 -s 3'')'); %-t 2 = RBF
         end
-        %[~, model] = evalc ('svmtrain (train_labels'', train_data'')');
+        [~, model] = evalc ('svmtrain (train_labels'', train_data'')');
         [~, assignments, ~, ~] = evalc ('svmpredict (test_labels'', test_data'', model)');
     end %if verbose...
-    
-    map (split, :) = model.sv_coef' * model.SVs; %#ok<AGROW>
+    if make_map
+        map (split, :) = model.sv_coef' * model.SVs; %#ok<AGROW>
+    end    
     ntrials (test_idx) = ntrials (test_idx) + 1;
     correct_idx = test_idx (find (test_labels == assignments'));
     correct (correct_idx) = correct (correct_idx) + 1;    
 end %for each split  
-%if make_map
-mean_map = mean (map, 1);
-z_map = mean_map ./ std (mean_map);
-if exist('good_idx','var')  %insert NaN for unused features
-    z_mapOK = zeros(n_dim,1);
-    z_mapOK(:) = nan;
-    z_mapOK(good_idx) = z_map;
-    z_map = z_mapOK;
+if make_map
+    mean_map = mean (map, 1);
+    z_map = mean_map ./ std (mean_map);
+    if exist('good_idx','var')  %insert NaN for unused features
+        z_mapOK = zeros(n_dim,1);
+        z_mapOK(:) = nan;
+        z_mapOK(good_idx) = z_map;
+        z_map = z_mapOK;
+    end
+else
+    z_map = [];
 end
-%end make_map
 temp = correct ./ ntrials;
 acc = mean (temp (find (~isnan (temp)))); %#ok<*FNDSB>
 acc_per_class(1) = mean (correct(class1_idx) ./ ntrials(class1_idx));

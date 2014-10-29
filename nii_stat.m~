@@ -260,7 +260,7 @@ end
 subfield = [ROIfield subfield];
 % for large voxel datasets - first pass to find voxels that vary
 if (roiIndex == 0) && (size(matnames,1) > 20) %voxelwise, large study
-    fprintf('Generating voxel mask for large voxelwise analysis\n');
+    fprintf('Generating voxel mask for large voxelwise analysis');
     idx = 0;
     
     for i = 1:size(matnames,1)
@@ -279,8 +279,9 @@ if (roiIndex == 0) && (size(matnames,1) > 20) %voxelwise, large study
                     sumImg = zeros(size(img));
                     
                 end
+           
                 img(~isfinite(img)) = 0;
-                img(sumImg > 0) = 1;
+                img(isfinite(img)) = 1;
                 sumImg  = sumImg + img;
                 
             else
@@ -289,11 +290,7 @@ if (roiIndex == 0) && (size(matnames,1) > 20) %voxelwise, large study
 
         end
     end %for each individual
-    sumImg(sumImg < minOverlap) = 0;
-    sumImg(sumImg > 0) = 1;
-    nOK = sum(sumImg(:) > 0);
-    fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(sumImg),100*nOK/numel(sumImg), minOverlap );
-    
+    idx
     error('cx')
 end
 error('px');
