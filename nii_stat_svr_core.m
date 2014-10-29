@@ -1,4 +1,4 @@
-function [labels, predicted_labels,z_map] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear)
+function [r, z_map, labels, predicted_labels] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear)
 % xlsname : file name to analyze
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
 %example
@@ -106,6 +106,8 @@ axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
+r = r(1,2); %return 
+%end nii_stat_svr_core()
 
 function num = tabreadSub(tabname)
 %read cells from tab based array. 

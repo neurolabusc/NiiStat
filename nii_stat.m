@@ -259,44 +259,42 @@ else
 end
 subfield = [ROIfield subfield];
 % for large voxel datasets - first pass to find voxels that vary
-if (roiIndex == 0) && (size(matnames,1) > 20) %voxelwise, large study
-    fprintf('Generating voxel mask for large voxelwise analysis\n');
-    idx = 0;
-    
-    for i = 1:size(matnames,1)
-        [in_filename] = deblank(matnames(i,:));
-        if isempty(in_filename)
-            %warning already generated
-        elseif isNII (in_filename)
-            error('Please use nii_nii2mat before conducting a large voxelwise analysis');
-        elseif (exist (in_filename, 'file'))
-            dat = load (in_filename);
-            if  issubfieldSub(dat,subfield)
-                img = dat.(ROIfield).dat;
-                %store behavioral and relevant imaging data for ALL relevant valid individuals
-                idx = idx + 1;
-                if idx == 1
-                    sumImg = zeros(size(img));
-                    
-                end
-                img(~isfinite(img)) = 0;
-                img(sumImg > 0) = 1;
-                sumImg  = sumImg + img;
-                
-            else
-                fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
-            end
-
-        end
-    end %for each individual
-    sumImg(sumImg < minOverlap) = 0;
-    sumImg(sumImg > 0) = 1;
-    nOK = sum(sumImg(:) > 0);
-    fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(sumImg),100*nOK/numel(sumImg), minOverlap );
-    
-    error('cx')
-end
-error('px');
+% if (roiIndex == 0) && (size(matnames,1) > inf) %voxelwise, large study
+%     fprintf('Generating voxel mask for large voxelwise analysis\n');
+%     idx = 0;
+%     
+%     for i = 1:size(matnames,1)
+%         [in_filename] = deblank(matnames(i,:));
+%         if isempty(in_filename)
+%             %warning already generated
+%         elseif isNII (in_filename)
+%             error('Please use nii_nii2mat before conducting a large voxelwise analysis');
+%         elseif (exist (in_filename, 'file'))
+%             dat = load (in_filename);
+%             if  issubfieldSub(dat,subfield)
+%                 img = dat.(ROIfield).dat;
+%                 %store behavioral and relevant imaging data for ALL relevant valid individuals
+%                 idx = idx + 1;
+%                 if idx == 1
+%                     sumImg = zeros(size(img));
+%                     
+%                 end
+%                 img(~isfinite(img)) = 0;
+%                 img(sumImg > 0) = 1;
+%                 sumImg  = sumImg + img;
+%                 
+%             else
+%                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
+%             end
+% 
+%         end
+%     end %for each individual
+%     sumImg(sumImg < minOverlap) = 0;
+%     sumImg(sumImg > 0) = 1;
+%     nOK = sum(sumImg(:) > 0);
+%     fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(sumImg),100*nOK/numel(sumImg), minOverlap );
+%     error('cx')
+% end
 idx = 0;
 for i = 1:size(matnames,1)
     [in_filename] = deblank(matnames(i,:));
@@ -338,7 +336,7 @@ for i = 1:size(matnames,1)
                     dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
                     subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
                 end
-                if idx == 1 
+                if (idx == 1) && (roiIndex < 1) %first image of voxelwise analyses 
                     vox = numel(subj_data{i}.(ROIfield).dat(:));
                     vox = vox * size(matnames,1); %worst case scenario: all individuals have image data
                     gb = (vox * 8)/ (1024^3); %doubles use 8-bytes

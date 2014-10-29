@@ -24,7 +24,8 @@ if verLessThan('matlab', '7.14')
 end
 % read the Excel file into cell arrays
 fprintf(' You will get an error if your Excel file does not have a worksheet named "%s" (case sensitive)\n', worksheetname);
-[~, txt, raw] = xlsread (xlsname, worksheetname);
+[~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
+%[~, txt, raw] = xlsread (xlsname, 'NiiStat','','basic');
 
 % prepare the list of subject ID's:
 % they are presumed to be in the first column of the Excel file;
