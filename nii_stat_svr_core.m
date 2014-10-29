@@ -28,7 +28,6 @@ end
 if ~islinear
     fprintf('Warning: please do not use map when conducting non-linear svr!');
 end
-
 addpath(svmdir); %make sure we can find the utility scripts
 %addpath c:/code/libsvm-3.11/matlab;
 [~,~,x] = fileparts(xlsname);
@@ -49,6 +48,7 @@ else
     %else remove columns with NO variability
     [data, good_idx] = requireVarSub(data);
 end
+fprintf(' %s (''%s'', %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, verbose, minUnique, islinear);
 if normRowCol ==  -2% rows [1], or columns [2], minus means exclude final column
     fprintf('Normalizing so each column has range 0..1 (last column excluded)\n');
     data(:,1:end-1) = normColSub(data(:,1:end-1));
