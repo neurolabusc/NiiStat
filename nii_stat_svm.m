@@ -1,4 +1,4 @@
-function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data)
+function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname)
 
     
 if numel(les_names) ~= size(les,2) %for correlation analyses
@@ -30,10 +30,20 @@ diary ([deblank(statname) 'svm.txt']);
 for j = 1:size(beh_names,2) %for each beahvioral variable
     beh_name1 = beh_names{j};
     beh1 = beh(:,j);
-    fnm = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
-    nii_stat_svm_core(fnm); %do not specify thresholds: svm_core will select
-    if ~nii_isBinary(beh1)
-        nii_stat_svr_core(fnm); %compute regression
+    [fnm, nOK] = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
+    if nOK < 1
+        fprintf('Skipping SVM/SVR: no valid data\n');
+    else
+        [~, loadingMap] = nii_stat_svm_core(fnm); %do not specify thresholds: svm_core will select
+        if exist('roifname','var') && ~isempty(roifname)
+           nii_array2roi (loadingMap, roifname, [statname '_svm.nii']) 
+        end
+        if ~nii_isBinary(beh1)
+            [~, loadingMap] = nii_stat_svr_core(fnm); %compute regression
+            if exist('roifname','var') && ~isempty(roifname)
+                nii_array2roi (loadingMap, roifname, [statname '_svr.nii']) 
+            end
+        end
     end
     %nii_stat_svm_core(fnm, min(beh1(:)), 0.5+min(beh1(:)) );
     %nii_stat_svm_core(fnm, min(beh1(:)), max(beh1(:)) );
@@ -42,7 +52,7 @@ diary off %stop logging text
 cd .. %leave the folder created by chDirSub
 %end nii_stat_svm() LOCAL FUNCTIONS FOLLOW
 
-function fnm = tabFileSub(les,beh1, beh_name1,  les_names, subj_data)  
+function [fnm, nOK] = tabFileSub(les,beh1, beh_name1,  les_names, subj_data)  
 if size(les,1) ~= size(beh1,1)
     error('nii_stat_svm confused');
 end
@@ -55,9 +65,10 @@ for j = 1:numel(les_names)
 end
 fprintf(fid,'%s\t', beh_name1);
 fprintf(fid,'\n');
+nOK = 0;
 for i = 1:n_subj
     if (std(les(i,:)) == 0) || ~isfinite(std(les(i,:)))
-        fprintf('WARNING: Skipping %s due to bogus data\n', subj_data{i}.filename);
+        fprintf('%s WARNING: Skipping %s due to bogus data (NaN)\n', mfilename, subj_data{i}.filename);
     else
         if ~isempty('subj_data')
            fprintf(fid,'%s\t',subj_data{i}.filename); 
@@ -69,6 +80,7 @@ for i = 1:n_subj
         end
         fprintf(fid,'%g\t',beh1(i));
         fprintf(fid,'\n');
+        nOK = nOK + 1;
     end
 end
 fclose(fid);

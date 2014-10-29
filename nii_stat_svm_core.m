@@ -82,7 +82,7 @@ if ~exist('thresholdHi','var') %if Excel file not specified, have user select on
 end
 %fprintf('Class labels range from %g to %g, values of %g or less will be group0, values of %g or more will be group1\n', min(class_labels), max(class_labels), thresholdLo, thresholdHi);
 %fprintf('Processing the command line: \n');
-fprintf(' %s (''%s'', %g, %g );\n', mfilename, xlsname, thresholdLo, thresholdHi);
+fprintf(' %s (''%s'', %g, %g, %g, %g);\n', mfilename, xlsname, thresholdLo, thresholdHi, verbose, islinear);
 
 [class_labels , data] = binarySub(class_labels, data, thresholdLo, thresholdHi);
 class1_idx = find (class_labels == 1)';

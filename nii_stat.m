@@ -82,7 +82,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'-1','0.01','2','0','1',''};
+        def = {'-1','0.01','2','6','1','8'};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -426,6 +426,7 @@ if regressBehav
         end
     end
 end %if regressBehav - regress behavioral data using lesion volume
+roiName = '';
 if roiIndex == 0 %voxelwise lesion analysis
     les_names = '';
     hdr = subj_data{1}.(ROIfield).hdr;
@@ -594,7 +595,7 @@ if sum(isnan(beh(:))) > 0
             %les1(j,1) = beh1(j); %to test analyses
         end 
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
         else
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE);
         end
@@ -607,7 +608,7 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM    
-        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data);
+        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName);
     else
         nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE);
     end
