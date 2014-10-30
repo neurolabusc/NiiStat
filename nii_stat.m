@@ -82,7 +82,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'-1','0.01','2','6','1','8'};
+        def = {'-1','0.01','2','0','1','8'};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -258,43 +258,48 @@ else
     subfield = '.mean';
 end
 subfield = [ROIfield subfield];
-% for large voxel datasets - first pass to find voxels that vary
-% if (roiIndex == 0) && (size(matnames,1) > inf) %voxelwise, large study
-%     fprintf('Generating voxel mask for large voxelwise analysis\n');
-%     idx = 0;
-%     
-%     for i = 1:size(matnames,1)
-%         [in_filename] = deblank(matnames(i,:));
-%         if isempty(in_filename)
-%             %warning already generated
-%         elseif isNII (in_filename)
-%             error('Please use nii_nii2mat before conducting a large voxelwise analysis');
-%         elseif (exist (in_filename, 'file'))
-%             dat = load (in_filename);
-%             if  issubfieldSub(dat,subfield)
-%                 img = dat.(ROIfield).dat;
-%                 %store behavioral and relevant imaging data for ALL relevant valid individuals
-%                 idx = idx + 1;
-%                 if idx == 1
-%                     sumImg = zeros(size(img));
-%                     
-%                 end
-%                 img(~isfinite(img)) = 0;
-%                 img(sumImg > 0) = 1;
-%                 sumImg  = sumImg + img;
-%                 
-%             else
-%                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
-%             end
-% 
-%         end
-%     end %for each individual
-%     sumImg(sumImg < minOverlap) = 0;
-%     sumImg(sumImg > 0) = 1;
-%     nOK = sum(sumImg(:) > 0);
-%     fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(sumImg),100*nOK/numel(sumImg), minOverlap );
-%     error('cx')
-% end
+%for large voxel datasets - first pass to find voxels that vary
+voxMask = [];
+if false
+%if (roiIndex == 0) && (size(matnames,1) > 10) %voxelwise, large study
+    fprintf('Generating voxel mask for large voxelwise statistics\n');
+    idx = 0;
+    
+    for i = 1:size(matnames,1)
+        [in_filename] = deblank(matnames(i,:));
+        if isempty(in_filename)
+            %warning already generated
+        elseif isNII (in_filename)
+            error('Please use nii_nii2mat before conducting a large voxelwise statistics');
+        elseif (exist (in_filename, 'file'))
+            dat = load (in_filename);
+            if  issubfieldSub(dat,subfield)
+                img = dat.(ROIfield).dat;
+                %store behavioral and relevant imaging data for ALL relevant valid individuals
+                idx = idx + 1;
+                if idx == 1
+                    voxMask = zeros(size(img));
+                    
+                end
+                img(~isfinite(img)) = 0;
+                img(img ~= 0) = 1;
+                voxMask  = voxMask + img;
+                
+            else
+                fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
+            end
+
+        end
+    end %for each individual
+    voxMask(voxMask < minOverlap) = 0;
+    voxMask(voxMask > 0) = 1;
+    %voxMask = voxMask(:); %make 1d
+    nOK = sum(voxMask(:) > 0);
+    fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(voxMask),100*nOK/numel(voxMask), minOverlap );
+    if nOK < 1
+        error('No voxels survive in mask');
+    end
+end
 idx = 0;
 for i = 1:size(matnames,1)
     [in_filename] = deblank(matnames(i,:));
@@ -331,7 +336,15 @@ for i = 1:size(matnames,1)
                 idx = idx + 1;
                 subj_data{idx}.filename = in_filename; %#ok<AGROW>
                 subj_data{idx}.behav = designMat(i); %#ok<AGROW>
-                subj_data{idx}.(ROIfield)  = dat.(ROIfield); %#ok<AGROW>
+                
+                if isempty(voxMask)
+                    subj_data{idx}.(ROIfield)  = dat.(ROIfield); %#ok<AGROW>
+                else
+                    %dat = dat.(ROIfield).dat(voxMask == 1);
+                    %subj_data{i}.(ROIfield).dat = dat;%#ok<AGROW>
+                    subj_data{i}.(ROIfield).dat = dat.(ROIfield).dat(voxMask == 1);
+                end
+                    
                 if regressBehav && isfield (dat.lesion, 'dat')
                     dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
                     subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
@@ -582,6 +595,7 @@ elseif reportROIvalues
     end
 end
 
+error('aqws')
 if sum(isnan(beh(:))) > 0
     for i =1:n_beh
         fprintf('Behavior %d/%d: estimating behaviors one as a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
@@ -597,7 +611,7 @@ if sum(isnan(beh(:))) > 0
         if doSVM
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
         else
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
         end
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
@@ -610,7 +624,7 @@ else
     if doSVM    
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE);
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE, voxMask);
     end
 end
 %end processMatSub()
