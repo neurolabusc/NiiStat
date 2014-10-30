@@ -236,36 +236,30 @@ for i = 1:length(beh_names) %or size(beh,2)
             statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
             statImg(good_idx(:)) = zMask;
         else
-            statImg = unmaskSub2(zMask, good_idx, voxMask);
+            statImg = unmaskSub2(statImg, good_idx, voxMask);
         end
         %statImg = reshape(statImg, hdr.dim(1), hdr.dim(2), hdr.dim(3));
+        size(good_idx)
+        error('bork')
         %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-        saveStatMapSub(hdr,statImg,[sprintf('Z%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );   
+        saveStatMapSub(hdr,statImg,[sprintf('Z%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i), voxMask );   
         if ~isempty(thresh_idx)
             zMask = z(:,i);
             subThresh_idx = setdiff (1:size(zMask, 1), thresh_idx);
             zMask(subThresh_idx) = 0;
             %statImg = zeros(hdr.dim(1)*hdr.dim(2)*hdr.dim(3),1);
-            if isempty(voxMask)
-                statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
-                statImg(good_idx(:)) = zMask;
-            else
-                statImg = unmaskSub2(zMask, good_idx, voxMask);
-            end
+            statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
+            statImg(good_idx(:)) = zMask;
             %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-            saveStatMapSub(hdr,statImg,[sprintf('threshZ%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );     
+            saveStatMapSub(hdr,statImg,[sprintf('threshZ%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i), voxMask );     
             if ~isempty(c)
                     cMask = c(:,i);
                     cMask(subThresh_idx) = 0;
                     %statImg = zeros(hdr.dim(1)*hdr.dim(2)*hdr.dim(3),1);
-                    if isempty(voxMask)
-                        statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
-                        statImg(good_idx(:)) = cMask;
-                    else
-                        statImg = unmaskSub2(cMask, good_idx, voxMask);
-                    end
+                    statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
+                    statImg(good_idx(:)) = cMask;
                     %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-                    saveStatMapSub(hdr,statImg,['threshC',statname, deblank(beh_names{i})], threshMin(i),threshMax(i) );           
+                    saveStatMapSub(hdr,statImg,['threshC',statname, deblank(beh_names{i})], threshMin(i),threshMax(i), voxMask );           
             end %if correlations
         end; %if some voxels survive threshold
     end; %if hdr exists
@@ -419,28 +413,20 @@ hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
 spm_write_vol(hdr,sumImg);
 %end saveSumMapSub()
 
-function img = unmaskSub2(img, good_idx, voxMask) %uncompress packed 1D vector to sparse 3D volume
-if isempty(voxMask)
-    return
-end
-old = img;
-img = zeros(sum(voxMask(:) ~= 0),1);
-img(:) = nan;
-img(good_idx(:)) = old;
-img = unmaskSub(img, voxMask);
-%end unmaskSub2()
-
 function img = unmaskSub(img, voxMask) %uncompress packed 1D vector to sparse 3D volume
 if isempty(voxMask)
     return
 end
+size(img)
+size(voxMask)
 old = img;
 img = zeros(size(voxMask));
 img(:) = nan;
 img(voxMask == 1) = old;
 %end unmaskSub()
 
-
+function img = unmaskSub2(img, voxMask) %uncompress packed 1D vector to sparse 3D volume
+statImg = unmaskSub2(statImg, good_idx, voxMask);
 
 
 function saveStatMapSub(hdr,statImg, statName,  minThreshold, maxThreshold)

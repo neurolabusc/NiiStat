@@ -5,6 +5,15 @@ function nii_array2node (nodeArray, edgeArray, roifname, outname)
 %Examples
 % nii_array2node([1 2 3 4 nan 6 7 8 9 10],50*rand(10,10),'/Users/rorden/NiiStat/roi/fox.nii','theNodes.node')
 % nii_array2node([1 2 3 4 nan 6 7 8 9 10],[],'/Users/rorden/NiiStat/roi/fox.nii')
+%Example that displays results
+%  nam = which('nii_stat');
+%  pth = fileparts(nam);
+%  nam = fullfile(pth, [filesep 'roi' filesep 'fox.nii']);
+%  nii_array2node([1 2 3 4 5 6 7 8 9 10],50*rand(10,10),nam,'theNodes.node')
+%  MRIcroS('closeAllItems'); 
+%  MRIcroS('addLayer','BrainMesh_ICBM152.nv'); %open image
+%  MRIcroS('addNodes','theNodes.node','theNodes.edge'); %add hot spots  
+
 if ~exist('roifname','var') %region of interest not specified
     [kROI, kROINumbers] = nii_roi_list() ;
     ROIIndex = str2double(cell2mat(inputdlg(['RoiIndex (' sprintf('%s',kROINumbers) ')'], 'Choose image', 1,{'2'})));
