@@ -261,7 +261,7 @@ subfield = [ROIfield subfield];
 %for large voxel datasets - first pass to find voxels that vary
 voxMask = [];
 %if false
-if (roiIndex == 0) && (size(matnames,1) > 50) && (doTFCE ~= 1) %voxelwise, large study
+if (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
     

@@ -100,20 +100,30 @@ if size(beh,2) == 1
 else
     fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), length(good_idx), size(les,2));
 end
-if isempty(roi_names) %voxelwise analysis
-    saveSumMapSub(hdr,sum (les, 1),statname, voxMask); %create image showing sum of values
-else
-    saveSumMapROI(hdr,sum (les, 1)/size(les,1),statname); %create image showing sum of values
-end
 %compute statistics
 les = les (:, good_idx); %squeeze data to only examine critical voxels
+if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+    voxPos = find(voxMask ~= 0);
+    good_idx = voxPos(good_idx);
+end
+if isempty(roi_names) %voxelwise analysis
+    sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
+    sumImg(good_idx(:)) = sum (les, 1);
+    saveSumMapSub(hdr, sumImg,statname);%, voxMask); %create image showing sum of values
+else
+    sumImg = zeros(numROIorVox,1);
+    sumImg(good_idx(:)) = sum (les, 1);
+    saveSumMapROI(hdr,sumImg,statname); %create image showing sum of values
+    %saveSumMapROI(hdr,sum (les, 1)/size(les,1),statname); %create image showing sum of values
+end
 numVox = size(les,2); %number of voxels/regions
 z = zeros(numVox,numFactors); %pre-allocate observed z-scores
 threshMax = zeros(numFactors,1); %pre-allocate statistical threhsold
 threshMin = threshMax;  %pre-allocate statistical threhsold
 startTime = tic;
 if (kNumRandPerm < -500) ||  (kNumRandPerm > 0) %if will estimate thresholds with permutation
-    rand ('seed', 6666); %#ok<RAND> %for newer versions: rng(6666); set random number seed - call this to ensure precise permutations between runs
+    rand ('seed', 6666);  %#ok<RAND> %for newer versions: rng(6666); set random number seed - call this to ensure precise permutations between runs
     %fprintf('NOTE: random number generator seed specified. Multiple runs will generate identical values.\n'); 
 end    
 if (kNumRandPerm < -1) && (size(beh,2) <= 1) %special case: nuisance regressors which requires multiple behaviors
@@ -166,7 +176,7 @@ else %threshold using pre-computed permutations
 end %else report permutation thresholds
 %next: report results
 if isempty(roi_names) %voxelwise
-	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname, voxMask); 
+	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask); 
 elseif numROIorVox ~= size(roi_names,1)
     reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,statname);
 else %if voxelwise, else region of interest analysis
@@ -176,10 +186,7 @@ diary off
 cd .. %leave the folder created by chDirSub
 %end nii_stat_core()
 
-
-
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
-
 function chDirSub(statname)
 datetime=datestr(now);
 datetime=strrep(datetime,':',''); %Replace colon with underscore
@@ -226,18 +233,18 @@ for i = 1:length(beh_names)
 end
 %end reportResultsMatrix()
 
-function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname,voxMask)
+function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname) %,voxMask)
 for i = 1:length(beh_names) %or size(beh,2)
     thresh_idx = union(find(z(:,i) < threshMin(i)), find(z(:,i) > threshMax(i)) );
     fprintf('%s z=%f..%f, %d voxels survive threshold\n', deblank(beh_names{i}),min(z(:,i)),max(z(:,i)),length(thresh_idx) );    
     if ~isempty(hdr)
         zMask = z(:,i);
-        if isempty(voxMask)
+        %if isempty(voxMask)
             statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
             statImg(good_idx(:)) = zMask;
-        else
-            statImg = unmaskSub2(zMask, good_idx, voxMask);
-        end
+        %else
+        %    statImg = unmaskSub2(zMask, good_idx, voxMask);
+        %end
         %statImg = reshape(statImg, hdr.dim(1), hdr.dim(2), hdr.dim(3));
         %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
         saveStatMapSub(hdr,statImg,[sprintf('Z%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );   
@@ -246,24 +253,24 @@ for i = 1:length(beh_names) %or size(beh,2)
             subThresh_idx = setdiff (1:size(zMask, 1), thresh_idx);
             zMask(subThresh_idx) = 0;
             %statImg = zeros(hdr.dim(1)*hdr.dim(2)*hdr.dim(3),1);
-            if isempty(voxMask)
+            %if isempty(voxMask)
                 statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
                 statImg(good_idx(:)) = zMask;
-            else
-                statImg = unmaskSub2(zMask, good_idx, voxMask);
-            end
+            %else
+            %    statImg = unmaskSub2(zMask, good_idx, voxMask);
+            %end
             %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
             saveStatMapSub(hdr,statImg,[sprintf('threshZ%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );     
             if ~isempty(c)
                     cMask = c(:,i);
                     cMask(subThresh_idx) = 0;
                     %statImg = zeros(hdr.dim(1)*hdr.dim(2)*hdr.dim(3),1);
-                    if isempty(voxMask)
+                    %if isempty(voxMask)
                         statImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
                         statImg(good_idx(:)) = cMask;
-                    else
-                        statImg = unmaskSub2(cMask, good_idx, voxMask);
-                    end
+                    %else
+                    %    statImg = unmaskSub2(cMask, good_idx, voxMask);
+                    %end
                     %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
                     saveStatMapSub(hdr,statImg,['threshC',statname, deblank(beh_names{i})], threshMin(i),threshMax(i) );           
             end %if correlations
@@ -401,9 +408,9 @@ behav(behav(:)==mn) = 0;
 behav(behav(:)==mx) = 1;
 %end ifBinomialForce01Sub()
 
-function saveSumMapSub(hdr,sumImg,statname, voxMask)
+function saveSumMapSub(hdr,sumImg,statname) %, voxMask)
 if isempty(hdr), return; end;
-sumImg = unmaskSub(sumImg, voxMask);
+%sumImg = unmaskSub(sumImg, voxMask);
 img = zeros(hdr.dim(1),hdr.dim(2),hdr.dim(3));
 if size(img(:)) ~= size(sumImg(:))
     fprintf('%s did not create a sum image, dimensions do not match template image %s\n',mfilename,fname);
@@ -419,29 +426,26 @@ hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
 spm_write_vol(hdr,sumImg);
 %end saveSumMapSub()
 
-function img = unmaskSub2(img, good_idx, voxMask) %uncompress packed 1D vector to sparse 3D volume
-if isempty(voxMask)
-    return
-end
-old = img;
-img = zeros(sum(voxMask(:) ~= 0),1);
-img(:) = nan;
-img(good_idx(:)) = old;
-img = unmaskSub(img, voxMask);
-%end unmaskSub2()
-
-function img = unmaskSub(img, voxMask) %uncompress packed 1D vector to sparse 3D volume
-if isempty(voxMask)
-    return
-end
-old = img;
-img = zeros(size(voxMask));
-img(:) = nan;
-img(voxMask == 1) = old;
-%end unmaskSub()
-
-
-
+% function img = unmaskSub2(img, good_idx, voxMask) %uncompress packed 1D vector to sparse 3D volume
+% if isempty(voxMask)
+%     return
+% end
+% old = img;
+% img = zeros(sum(voxMask(:) ~= 0),1);
+% img(:) = nan;
+% img(good_idx(:)) = old;
+% img = unmaskSub(img, voxMask);
+% %end unmaskSub2()
+% 
+% function img = unmaskSub(img, voxMask) %uncompress packed 1D vector to sparse 3D volume
+% if isempty(voxMask)
+%     return
+% end
+% old = img;
+% img = zeros(size(voxMask));
+% img(:) = nan;
+% img(voxMask == 1) = old;
+% %end unmaskSub()
 
 function saveStatMapSub(hdr,statImg, statName,  minThreshold, maxThreshold)
 %save map as NIfTI format image
