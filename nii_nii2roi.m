@@ -54,12 +54,18 @@ for j=1:size(roiNames,1)
     rhdr = spm_vol (deblank (roiName)); %load ROI header
     rimg = spm_read_vols (rhdr); %load ROI image
     if normalizeRoi
-        fprintf('Scaling %s to be in the range 0..1\n', roiName);
-        rimg = rimg - min(rimg(:)); %translate so range 0..max
-        if ~isfinite(max(rimg(:))) || (max(rimg(:)) == 0)
-            error('Not a valid region of interest %s',roiName);
+        if (min(rimg(:)) ~= 0) || (max(rimg(:)) ~= 0) %only if required
+            fprintf('Scaling %s to be in the range 0..1\n', roiName);
+            rimg = rimg - min(rimg(:)); %translate so range 0..max
+            if ~isfinite(max(rimg(:))) || (max(rimg(:)) == 0)
+                error('Not a valid region of interest %s',roiName);
+            end
+            rimg = rimg ./ max(rimg(:)); %scale so range now 0..1
         end
-        rimg = rimg ./ max(rimg(:)); %scale so range now 0..1
+    end
+    if sum(~isfinite(rimg(:))) > 0 
+        fprintf('WARNING: not all voxels are finite - these are set to zero %s\n', rhdr.fname);
+        rimg( ~isfinite(rimg)) = 0;
     end
     if ~isequal(inhdr.mat, rhdr.mat) || ~isequal(inhdr.dim(1:3), rhdr.dim(1:3))
         %we could warp the ROI to match the image, however since ROIs are indexed we would need to use nearest neighbor interpolation
@@ -74,6 +80,10 @@ for j=1:size(roiNames,1)
     else %if reslice else image matches dimension of ROI
         inimgR = inimg;
     end %if image must be resliced to match ROI
+    if sum(~isfinite(inimgR(:))) > 0 
+        fprintf('WARNING: not all voxels are finite - these are set to zero %s\n', inhdr.fname);
+        inimgR( ~isfinite(inimgR)) = 0;
+    end
     [~, roiNam, ~] = fileparts(roiName); 
     %stat.label = strvcat(stat.(statName).label,roiName);
     roi_names = strvcat(roi_names, roiNam); %#ok<REMFF1>

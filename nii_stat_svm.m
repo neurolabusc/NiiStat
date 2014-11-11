@@ -67,9 +67,12 @@ fprintf(fid,'%s\t', beh_name1);
 fprintf(fid,'\n');
 nOK = 0;
 for i = 1:n_subj
-    if (std(les(i,:)) == 0) || ~isfinite(std(les(i,:)))
+    if  ~isfinite(std(les(i,:)))
         fprintf('%s WARNING: Skipping %s due to bogus data (NaN)\n', mfilename, subj_data{i}.filename);
     else
+        if (std(les(i,:)) == 0) 
+            fprintf('%s WARNING: No variability in imaging data for %s (all regions have an intensity of %g)\n', mfilename, subj_data{i}.filename, les(i,1));
+        end
         if ~isempty('subj_data')
            fprintf(fid,'%s\t',subj_data{i}.filename); 
         else

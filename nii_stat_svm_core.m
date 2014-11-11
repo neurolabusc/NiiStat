@@ -1,10 +1,11 @@
-function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, thresholdLo, thresholdHi, verbose, islinear)
+function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear)
 %compute linear support vector machine for data
 % xlsname   : name of excel or tab delimted text file:
 %            -first row are column names
 %            -first column: ignored (participant identifier)
 %            -columns 2..N-1: independent variables
 %            -final column: class group variable
+% normRowCol : normalize none [0], rows [1, default], or columns [2]
 % thresholdLo : criteria for classifying final column as class1
 %              example: if 2 then group 1 will be all samples of 2 or less
 % thresholdHi : criteria for classifying final column as class2
@@ -26,6 +27,9 @@ if ~exist('xlsname','var') %if Excel file not specified, have user select one
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)'},'Select the design file'); 
    if isequal(file,0), return; end;
    xlsname=[pth file];
+end
+if ~exist('normRowCol','var')
+    normRowCol = 1; %none [0], rows [1], or columns [2]
 end
 if ~exist('verbose','var') %vebosity not specified
     verbose=false;
@@ -59,7 +63,20 @@ data = num (:, 1:n_dim);
 %normalize each predictor for range 0..1 to make magnitudes similar
 %
 %data  = normColSub(data);
-data  = normRowSub(data);
+if normRowCol ==  -2% rows [1], or columns [2], minus means exclude final column
+    fprintf('Normalizing so each column has range 0..1 (last column excluded)\n');
+    data(:,1:end-1) = normColSub(data(:,1:end-1));
+elseif normRowCol ==  -1% rows [1], or columns [2], minus means exclude final column
+    fprintf('Normalizing so each row has range 0..1 (last column excluded)\n');
+    data(:,1:end-1) = normRowSub(data(:,1:end-1));
+elseif normRowCol ==  1% rows [1], or columns [2]
+    fprintf('Normalizing so each row has range 0..1\n');
+    data = normRowSub(data);
+elseif normRowCol ==  2% rows [1], or columns [2]
+    fprintf('Normalizing so each column has range 0..1\n');
+    data = normColSub(data);
+end
+%data  = normRowSub(data);
 %binarize class_label: either 0 or 1
 class_labels = num (:, n_dim+1);
 if (min(class_labels) == max(class_labels))
@@ -82,7 +99,7 @@ if ~exist('thresholdHi','var') %if Excel file not specified, have user select on
 end
 %fprintf('Class labels range from %g to %g, values of %g or less will be group0, values of %g or more will be group1\n', min(class_labels), max(class_labels), thresholdLo, thresholdHi);
 %fprintf('Processing the command line: \n');
-fprintf(' %s (''%s'', %g, %g, %g, %g);\n', mfilename, xlsname, thresholdLo, thresholdHi, verbose, islinear);
+fprintf(' %s (''%s'', %d, %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear);
 
 [class_labels , data] = binarySub(class_labels, data, thresholdLo, thresholdHi);
 class1_idx = find (class_labels == 1)';
@@ -246,6 +263,10 @@ if size(x,1) < 2 %must have at least 2 rows
     fprintf('Error: normalizing columns requires multiple rows\n');
     return
 end
+if min(max(x,[],1)-min(x,[],1)) == 0
+    fprintf('Error: unable to normalize columns: some have no variability\n');
+    return;
+end
 x = bsxfun(@minus,x,min(x,[],1)); %translate so minimum = 0
 x = bsxfun(@rdivide,x,max(x,[],1)); %scale so range is 1
 %end normColSub()
@@ -254,11 +275,11 @@ function x = normRowSub(x)
 %normalize each column for range 0..1
 % x = [1 4 3 0; 2 6 2 5; 3 10 2 2] -> x = [0.25 1 0.75 0; 0 1 0 0.75; 0.125 1 0 0]
 if size(x,2) < 2 %must have at least 2 rows
-    fprintf('Error: normalizing rows requires multiple columns');
+    fprintf('Error: normalizing rows requires multiple columns\n');
     return
 end
 if min(max(x,[],2)-min(x,[],2)) == 0
-    fprintf('Error: unable to normalize rows: some have no variability');
+    fprintf('Error: unable to normalize rows: some have no variability\n');
     return;
 end
 x = bsxfun(@minus,x,min(x,[],2)); %translate so minimum = 0
@@ -287,21 +308,21 @@ end %while: for whole file
 fclose(fid);
 %end tabreadSub()
 
-function [good_dat, good_idx] = requireNonZeroSub (dat)
-%remove columns with zeros
-good_idx=[];
-for col = 1:size(dat,2)
-    if sum(dat(:,col) == 0) > 0
-       %fprintf('rejecting column %d (non-numeric data')\n',col) %
-    elseif min(dat(:,col)) ~= max(dat(:,col))
-        good_idx = [good_idx, col];  %#ok<AGROW>
-    end
-end %for col: each column
-if numel(good_idx) ~= size(dat,2)
-    fprintf('Some predictors have zeros (analyzing %d of %d predictors)\n',numel(good_idx), size(dat,2));
-end
-good_dat = dat(:,good_idx);
-%end requireNonZeroSub()
+% function [good_dat, good_idx] = requireNonZeroSub (dat)
+% %remove columns with zeros
+% good_idx=[];
+% for col = 1:size(dat,2)
+%     if sum(dat(:,col) == 0) > 0
+%        %fprintf('rejecting column %d (non-numeric data')\n',col) %
+%     elseif min(dat(:,col)) ~= max(dat(:,col))
+%         good_idx = [good_idx, col];  %#ok<AGROW>
+%     end
+% end %for col: each column
+% if numel(good_idx) ~= size(dat,2)
+%     fprintf('Some predictors have zeros (analyzing %d of %d predictors)\n',numel(good_idx), size(dat,2));
+% end
+% good_dat = dat(:,good_idx);
+% %end requireNonZeroSub()
 
 function [good_dat, good_idx] = requireVarSub (dat)
 good_idx=[];
