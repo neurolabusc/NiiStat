@@ -264,7 +264,6 @@ voxMask = [];
 if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
-    
     for i = 1:size(matnames,1)
         [in_filename] = deblank(matnames(i,:));
         if isempty(in_filename)
