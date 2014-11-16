@@ -37,9 +37,10 @@ end
 roi_names =[];
 for j=1:size(roiNames,1)  
     roiName = deblank(roiNames(j,:));
+    roiName
     [pth,nam,ext] = spm_fileparts(roiName);
     if ~exist(roiName,'file') 
-        fullfile(pth,[nam ext]); %remove volume, e.g. 'img.nii,1' -> 'img.nii'
+        roiName = fullfile(pth,[nam ext]); %remove volume, e.g. 'img.nii,1' -> 'img.nii'
     end
     if ~exist(roiName,'file') 
         roiName = [nam ext]; %remove volume and path (check cwd)
