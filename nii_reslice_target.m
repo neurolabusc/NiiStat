@@ -27,7 +27,7 @@ if ~exist('tarhdr','var')
     tarhdr = spm_select(1,'image','Select target image (source will be resliced to match target)');
 end
 if ~exist('linearInterp','var')
-    linearInterp = false;%true;
+    linearInterp = true;
 end
 if ~isstruct(tarhdr)
     tarhdr = spm_vol(tarhdr); %load target header

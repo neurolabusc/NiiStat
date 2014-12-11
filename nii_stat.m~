@@ -83,7 +83,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'4000','0.05','2','1','2',''};
+        def = {'4000','0.05','2','1','1',''};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -724,7 +724,7 @@ if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MA
     ext = '.mat';
     %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
 else
-    if exist(fname, 'file') == 2, return; end;
+    if exist(fname, 'file'), return; end;
 end
 fname = fullfile(pth,[nam '.mat']);
 if exist(fname, 'file'), return; end;
@@ -789,8 +789,7 @@ s = s/(sqrt(6/n)); %convert skew to Z-skew
 
 function img = normSub(img, mn, stdev)
 if ~isfinite(mn) || ~isfinite(stdev), return; end;
-%img = ((img-mn)/stdev)+1;
-img = ((img-mn)/stdev)+55;
+img = ((img-mn)/stdev)+1;
 %normSub
 
 function [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat,subfield)
@@ -802,12 +801,11 @@ if isempty(dat), return; end;
 if isempty(strfind(subfield,'cbf')), return; end;
 if ~issubfieldSub(dat,'cbf'), return; end;
 if issubfield(dat.cbf,'c1R') && issubfield(dat.cbf,'c2R')
-    cbfMean = (dat.cbf.c1R+dat.cbf.c2R)/2;
+    cbfMean = (dat.cbf.c1R+dat.cbf.c2R);
     cbfStd = 0.66;
-    fprintf('Normalizing intensity using precomputed right hemisphere CBF estimates %g\n', cbfMean);
+    fprintf('Normalizing instensity using precomputed right hemisphere CBF estimates');
     return
 end
-fprintf('WARNING: DO NOT IGNORE! Please use modern CBF maps')
 img = dat.cbf.dat(:);
 img(~isfinite(img)) = 0; %remove nan, inf, -inf voxels
 imgL=img;

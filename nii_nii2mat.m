@@ -1,10 +1,12 @@
-function nii_nii2mat (niinames, modalityIndex)
+function nii_nii2mat (niinames, modalityIndex, disknames)
 %Convert NIfTI images to mat files for analysis with nii_stat_xls
 % niinames = (optional) filenames to convert
-%
+% modality : is this lesion, cbf, etc
+% disknames : (optional) custom name for mat file
 %Example
 % nii_nii2mat(strvcat('wa.nii','wb.nii') );
-% nii_nii2mat('vx.nii',1,1);
+% nii_nii2mat('vx.nii',1);
+% nii_nii2mat('lesionP11.nii',1,'P11.mat');
 if ~exist('niinames','var') %no files specified
  niinames = spm_select(inf,'^.*\.(gz|voi|img|nii)$','Select images to convert to mat');
  %niinames = spm_select(inf,'image','Select images to convert to mat');
@@ -43,7 +45,11 @@ for i=1:size(niinames,1)
     niiname = deblank(niinames(i,:));
     niiname = unGzSub (niiname);
     [p,n,~] =spm_fileparts(niiname);
-	diskName = fullfile(p,[n '.mat']);
+    if exist('disknames','var') && size(disknames,1) >= i
+    	diskName = deblank(disknames(i,:));
+    else
+		diskName = fullfile(p,[n '.mat']);
+    end
     hdr = spm_vol(niiname);
     img = spm_read_vols(hdr);
     mn = min(img(:));
