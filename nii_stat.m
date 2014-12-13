@@ -790,7 +790,7 @@ s = s/(sqrt(6/n)); %convert skew to Z-skew
 function img = normSub(img, mn, stdev)
 if ~isfinite(mn) || ~isfinite(stdev), return; end;
 %img = ((img-mn)/stdev)+1;
-img = ((img-mn)/stdev)+55;
+img = ((img-mn)/stdev)+100;
 %normSub
 
 function [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat,subfield)
