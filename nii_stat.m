@@ -83,7 +83,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'4000','0.05','2','1','2',''};
+        def = {'0','0.05','2','0','1',''};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -362,7 +362,7 @@ for i = 1:size(matnames,1)
                 subj_data{idx}.filename = in_filename; %#ok<AGROW>
                 subj_data{idx}.behav = designMat(i); %#ok<AGROW>
                 if isempty(voxMask)
-                    dat.(ROIfield).mean = normSub(dat.(ROIfield).mean, cbfMean, cbfStd);
+                    %dat.(ROIfield).mean = normSub(dat.(ROIfield).mean, cbfMean, cbfStd);
                     subj_data{idx}.(ROIfield)  = dat.(ROIfield); %#ok<AGROW>
                 else
                     dat.(ROIfield).dat = normSub(dat.(ROIfield).dat, cbfMean, cbfStd);

@@ -31,6 +31,7 @@ if ~exist('linearInterp','var')
 end
 if ~isstruct(tarhdr)
     tarhdr = spm_vol(tarhdr); %load target header
+    tarhdr = tarhdr(1); %in case target is multiple volume file
 end
 imgdim = tarhdr.dim(1:3);
 if ~isstruct(inhdr)

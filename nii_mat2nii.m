@@ -15,7 +15,7 @@ if length(matname) < 1, return; end;
 mat = load(matname);
 for m = 1 : size(kModalities,1)
     modality = deblank(kModalities(m,:));
-    
+    modality
     if isfield(mat, modality) && isfield(mat.(modality),'hdr')
         hdr = mat.(modality).hdr;
         img = mat.(modality).dat;
