@@ -22,13 +22,15 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-if exist('spm','file') ~= 2
-    error('%s requires SPM to be installed', mfilename);
-end
+fprintf('Version 2/2/2015 of %s\n', mfilename);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
    xlsname=[pth file];
+end
+if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to report version and quit
+if exist('spm','file') ~= 2
+    error('%s requires SPM to be installed', mfilename);
 end
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
