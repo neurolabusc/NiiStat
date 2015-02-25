@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 2/2/2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 2/2/2015 of %s\n', mfilename);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -139,9 +139,7 @@ end
 for i = 1: length(modalityIndices) %for each modality
     modalityIndex = modalityIndices(i);
     for j = 1: length(roiIndices)
-        
         roiIndex = roiIndices(j);
-        fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
         processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce);
     end
 end
@@ -299,11 +297,13 @@ if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %
                 idx = idx + 1;
                 if idx == 1
                     voxMask = zeros(size(img));
+                    
                 end
                 img(~isfinite(img)) = 0;
                 img(img ~= 0) = 1;
-                if numel(voxMask) ~= numel(img), error('Unexpected image dimensions vary %s', in_filename); end;
+                if numel(voxMask) ~= 
                 voxMask  = voxMask + img;
+                
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
             end
