@@ -302,7 +302,7 @@ if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %
                 end
                 img(~isfinite(img)) = 0;
                 img(img ~= 0) = 1;
-                if numel(voxMask) ~= numel(img), error('Unexpected image dimensions vary %s', in_filename); end;
+                if numel(voxMask) ~= numel(img), s = dir(in_filename); error('Unexpected image dimensions vary %s %d', in_filename, s.bytes); end;
                 voxMask  = voxMask + img;
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);

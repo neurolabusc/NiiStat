@@ -1,7 +1,7 @@
 function [file_list, number_list] = nii_modality_list() 
 %Reports names of modalities available for analysis
 %
-file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','cbv','dtifc');
+file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','cbv','dtifc','fmri','fmrib');
 number_list='';
 for i = 1: size(file_list, 1)
 	nam = deblank(file_list(i,:));
