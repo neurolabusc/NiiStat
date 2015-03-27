@@ -1,4 +1,4 @@
-function nii_nii2mat (niinames, modalityIndex, disknames)
+function nii_nii2mat (niinames, modalityIndex, disknames, roi)
 %Convert NIfTI images to mat files for analysis with nii_stat_xls
 % niinames = (optional) filenames to convert
 % modality : is this lesion, cbf, etc
@@ -7,6 +7,8 @@ function nii_nii2mat (niinames, modalityIndex, disknames)
 % nii_nii2mat(strvcat('wa.nii','wb.nii') );
 % nii_nii2mat('vx.nii',1);
 % nii_nii2mat('lesionP11.nii',1,'P11.mat');
+% nii_nii2mat('lesionP11.nii','lesion','P11.mat');
+
 if ~exist('niinames','var') %no files specified
  niinames = spm_select(inf,'^.*\.(gz|voi|img|nii)$','Select images to convert to mat');
  %niinames = spm_select(inf,'image','Select images to convert to mat');
@@ -22,6 +24,13 @@ if ~exist('modalityIndex','var') %get preferences
     if isempty(answer), return; end;
     modalityIndex = str2double(answer{1});
 end
+if ischar(modalityIndex)
+    [~, ~, idx] = nii_modality_list(modalityIndex);
+    if idx < 1, error('Invalid roi name %s', modalityIndex); end;
+    modalityIndex = idx;
+end
+%end modalityIndexSub()
+
 %set modality
 if (modalityIndex > size(kModalities,1)) || (modalityIndex < 1)
     fprintf('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
@@ -39,6 +48,14 @@ end
 %     kROIs = strvcat(kROIs, 'aalcat');
 % end
 kROIs = nii_roi_list();
+if exist('roi', 'var')
+    roiStart = roi;
+    roiEnd = roi;   
+    if roi > size(kROIs,1), error('roi must be a number 1..%d',size(kROIs,1)); end; 
+else
+    roiStart = 1;
+    roiEnd = size(kROIs,1);
+end;
 Voxfield = deblank(kModalities(modalityIndex,:));
 %convert images
 for i=1:size(niinames,1)
@@ -65,9 +82,11 @@ for i=1:size(niinames,1)
     end
     stat = [];
     if i == 1, fprintf('Creating modality "%s"\n',Voxfield); end;
-    stat.(Voxfield).hdr = hdr;
-    stat.(Voxfield).dat = img;
-    for roiIndex = 1: size(kROIs,1)
+    if ndims(img) == 3
+        stat.(Voxfield).hdr = hdr;
+        stat.(Voxfield).dat = img;
+    end
+    for roiIndex = roiStart: roiEnd
         ROIname = deblank(kROIs(roiIndex,:));
         if i == 1
             [~, nam] = fileparts(ROIname);

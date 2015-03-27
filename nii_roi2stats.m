@@ -54,20 +54,37 @@ stat.(proi).label = labelSub (txtName);
 rhdr = spm_vol (deblank (niiName));
 rimg = spm_read_vols (rhdr);
 if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3))
-    %we could warp the ROI to match the image, however since ROIs are indexed we would need to use nearest neighbor interpolation
-    % therefore, we warp all images to match the ROI
-    inimgOrig = inimg; %load input image 
-    fprintf('reslicing %s to match %s\n',inhdr(1).fname,rhdr.fname);
-    inimg = zeros([rhdr.dim(1:3),size(inimg,4)]);
-    %inhdr1 = inhdr(1); %first volume
-    imgdim = rhdr.dim;
-    for v = 1: size(inimg,4) 
-        inimgOrig1 = inimgOrig(:,:,:,v); 
+    if ndims(inimg) < 4
+        %we could warp the ROI to match the image, however since ROIs are indexed we would need to use nearest neighbor interpolation
+        % therefore, we warp all images to match the ROI
+        inimgOrig = inimg; %load input image 
+        fprintf('reslicing %s to match %s\n',inhdr(1).fname,rhdr.fname);
+        inimg = zeros([rhdr.dim(1:3),size(inimg,4)]);
+        %inhdr1 = inhdr(1); %first volume
+        imgdim = rhdr.dim;
+        for v = 1: size(inimg,4) 
+            inimgOrig1 = inimgOrig(:,:,:,v); 
+            for i = 1:imgdim(3)
+                M = inv(spm_matrix([0 0 -i])*inv(rhdr.mat)*inhdr(1).mat); %#ok<MINV>
+                inimg(:,:,i,v) = spm_slice_vol(inimgOrig1, M, imgdim(1:2), 1); % (linear interp)
+            end        
+        end; %for each volume
+    else
+        %for 4D images, we reslice the ROI to match the imag
+        rimgOrig = rimg; %load input image 
+        fprintf('reslicing %s to match %s\n',rhdr.fname, inhdr(1).fname);
+        rimg = zeros(inhdr(1).dim(1:3));
+        %inhdr1 = inhdr(1); %first volume
+        imgdim = inhdr(1).dim(1:3);
         for i = 1:imgdim(3)
-            M = inv(spm_matrix([0 0 -i])*inv(rhdr.mat)*inhdr(1).mat); %#ok<MINV>
-            inimg(:,:,i,v) = spm_slice_vol(inimgOrig1, M, imgdim(1:2), 1); % (linear interp)
-        end        
-    end; %for each volume
+            M = inv(spm_matrix([0 0 -i])*inv(inhdr(1).mat)*rhdr.mat); %#ok<MINV>
+            rimg(:,:,i) = spm_slice_vol(rimgOrig, M, imgdim(1:2), 0); % (nearest neighbor interp)
+        end     
+        %h =inhdr(1);
+        %h.fname = 'test.nii';
+        %h.dim = inhdr(1).dim(1:3);
+        %spm_write_vol(h,rimg);
+    end
 end %if image must be resliced to match ROI
 if size(inimg,4) == 1 %3D data
     stat.(proi).mean = roiMeanSub (inimg, rimg);
