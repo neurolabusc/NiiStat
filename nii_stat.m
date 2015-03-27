@@ -85,7 +85,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if designUsesNiiImages
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
-        def = {'0','0.05','2','0','1',''};
+        def = {'4000','0.05','2','6','1',''};
         %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -114,10 +114,10 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     end
     if any(special == 5) %allow user to specify custom ROIs
         customROI = true;
-        if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
-            roiIndices = 0;
-            fprintf('Custom ROIs require selecting the voxelwise modality\n');
-        end
+        %if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
+        %    roiIndices = 0;
+        %    fprintf('Custom ROIs require selecting the voxelwise modality\n');
+        %end
     end
     if any(special == 6) %allow WM/CSF connections
         doTFCE = true;
@@ -547,8 +547,8 @@ else %if voxelwise else region of interest analysis
         end
     end
 end %if voxelwise else roi
-if customROI
-    if roiIndex ~= 0, fprintf('Custom ROIs require selecting the voxelwise modality\n'); end;
+if customROI && roiIndex == 0
+    %if roiIndex ~= 0, fprintf('Custom ROIs require selecting the voxelwise modality\n'); end;
     roiNames = spm_select(inf,'image','Select regions of interest');
     lesVox = les;
     les = zeros(n_subj, size(roiNames,1) );
@@ -558,11 +558,16 @@ if customROI
     hdr = []; %no image for these regions of interest
     les_names = cellstr(les_names);
 end %if custom ROI 
-if (size(les_names,1) > 1) && (~kAnalyzeCorrelationNotMean) &&  (size(les_names,1) == numel( les(1, :)))   %for ROI analyses
+if roiIndex ~= 0 && (size(les_names,1) > 1)  &&  (size(les_names,1) == numel( les(1, :))) && (~kAnalyzeCorrelationNotMean)
   %this next bit allow us to remove ROIs
   % global roiMask
   % roiMask = [1 3 4]; %only include these regions of interest
   global roiMask
+  if customROI
+    answer = inputdlg('Only include the following regions','ROI inclusion criteria',1,{'1 2 6 8'})
+    if isempty(answer), return; end;
+    roiMask = str2num(answer{1});
+  end
   if ~isempty(roiMask)
     if min(roiMask(:)) < 1 || max(roiMask(:)) > size( les(1, :),2)
         error('global roiMask must have values in the range 1..%d', size( les(1, :),2));
