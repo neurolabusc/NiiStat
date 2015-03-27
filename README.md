@@ -2,6 +2,8 @@
 
 NiiStat is a set of Matlab scripts for analyzing neuroimaging data from clinical populations
 
+This GitHub archive contains the latest release. For usage see the [NITRC website](http://www.nitrc.org/projects/niistat/)
+
 ##### Versions
 
 3Mar2015 : 
