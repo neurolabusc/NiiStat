@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 3/27/2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 3/29/2015 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -86,7 +86,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
     else
         def = {'4000','0.05','2','6','1',''};
-        %def = {'4000','0.05','2','4','6',''};
+        %def = {'4000','0.05','2','6','7','5'};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
     if isempty(answer), return; end;
@@ -467,9 +467,9 @@ if regressBehav
         end
     end
 end %if regressBehav - regress behavioral data using lesion volume
+
 roiName = '';
 if roiIndex == 0 %voxelwise lesion analysis
-    les_names = '';
     hdr = subj_data{1}.(ROIfield).hdr;
     for i = 1:n_subj
         if (i > 1) && (numel(subj_data{i}.(ROIfield).dat(:)) ~= numel(subj_data{1}.(ROIfield).dat(:)))
@@ -511,6 +511,23 @@ if roiIndex == 0 %voxelwise lesion analysis
             end  %mask each subject's data
     end %if mask
 else %if voxelwise else region of interest analysis
+    %NEXT roi masking
+    roiMaskI = []; %inclusive ROI mask - e.g. if [1 2 12] then only these 3 regions analyzed...
+    les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
+    if customROI
+        answer = inputdlg(['Only include the following regions (1..', sprintf('%d',numel(les_names)),')'] ,'ROI inclusion criteria',1,{'1 2 6 8'});
+        if isempty(answer), return; end;
+        roiMaskI = str2num(answer{1});
+    else
+        global roiMask
+        roiMaskI = roiMask; %inclusion mask
+    end
+    if ~isempty(roiMaskI)
+        les_names = les_names(roiMaskI,:);
+    end
+
+
+    
     %find the appropriate ROI
     %[mpth,~,~] = fileparts( deblank (which(mfilename)));
     %roiName = fullfile(mpth,[deblank(kROIs(roiIndex,:)) '1mm.nii']);
@@ -521,7 +538,7 @@ else %if voxelwise else region of interest analysis
     end
     hdr = spm_vol(roiName);
     %provide labels for each region
-    les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
+    %les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
     %next: create labels for each region, add image values
     if kAnalyzeCorrelationNotMean %strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
         labels = les_names;
@@ -529,7 +546,7 @@ else %if voxelwise else region of interest analysis
             %http://stackoverflow.com/questions/13345280/changing-representations-upper-triangular-matrix-and-compact-vector-octave-m
             %extract upper triangle as vector
             A = subj_data{i}.(ROIfield).r;
-            [labels,A] = shrink_matxCustomSub(labels,A, i);
+            A = shrink_matxCustomSub( A,  roiMaskI);
             if GrayMatterConnectivityOnly == true
                 [les_names,A] = shrink_matxSub(labels,A);
                 %fprintf('Only analyzing gray matter regions (%d of %d)\n',size(les_names,1),size(labels,1) );
@@ -543,10 +560,19 @@ else %if voxelwise else region of interest analysis
         end
     else %not DTI n*n connectivity matrix
         for i = 1:n_subj
-            les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
+            
+            if ~isempty(roiMaskI)
+                A = subj_data{i}.(ROIfield).mean;
+                les(i, :) = A(roiMaskI); %#ok<AGROW>
+            else  
+                les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
+            end
         end
+        
     end
+
 end %if voxelwise else roi
+
 if customROI && roiIndex == 0
     %if roiIndex ~= 0, fprintf('Custom ROIs require selecting the voxelwise modality\n'); end;
     roiNames = spm_select(inf,'image','Select regions of interest');
@@ -558,30 +584,8 @@ if customROI && roiIndex == 0
     hdr = []; %no image for these regions of interest
     les_names = cellstr(les_names);
 end %if custom ROI 
-if roiIndex ~= 0 && (size(les_names,1) > 1)  &&  (size(les_names,1) == numel( les(1, :))) && (~kAnalyzeCorrelationNotMean)
-  %this next bit allow us to remove ROIs
-  % global roiMask
-  % roiMask = [1 3 4]; %only include these regions of interest
-  global roiMask
-  if customROI
-    answer = inputdlg('Only include the following regions','ROI inclusion criteria',1,{'1 2 6 8'})
-    if isempty(answer), return; end;
-    roiMask = str2num(answer{1});
-  end
-  if ~isempty(roiMask)
-    if min(roiMask(:)) < 1 || max(roiMask(:)) > size( les(1, :),2)
-        error('global roiMask must have values in the range 1..%d', size( les(1, :),2));
-    end
-    global roiMaskDeleteItems;
-    if ~isempty(roiMaskDeleteItems) && roiMaskDeleteItems
-        rMask = roiMask; %delete items in ROI mask, [1 2 5] removes 1st, 2nd, 5th col
-    else
-        rMask = 1: size(les_names,1); rMask(roiMask)=[]; %[1 2 5] preserves 1st, 2nd 5th
-    end
-    les(:, rMask)=[]; %remove columns
-    les_names(rMask,:) = [];
-  end   
-end
+
+
 if (numPermute < -2) && (numPermute >= -500)
     fprintf('Error: Current software can not understand %d permutations (reserved for future usage).\n', numPermute);
     return;
@@ -683,23 +687,16 @@ end
 %end processMatSub()
 
 
-function [labels, mat] = shrink_matxCustomSub(labels, mat, shrinkLabels)
+function  mat = shrink_matxCustomSub( mat, roiMaskI)
 %removes columns/rows as specified by the global "roiMask"
 %this next bit allow us to remove ROIs
 % global roiMask
 % roiMask = [1 3 4]; %only include these regions of interest
-global roiMask
-if isempty(roiMask), return; end;
-global roiMaskDeleteItems;
-if ~isempty(roiMaskDeleteItems) && roiMaskDeleteItems
-        %index = roiMask; %delete items in ROI mask, [1 2 5] removes 1st, 2nd, 5th col
-else
-        indx = roiMask; %[1 2 5] preserves 1st, 2nd 5th
-end
-smallmat = mat(indx,:); %remove rows
-mat = smallmat(:,indx); %remove columns
-size(mat)
-if shrinkLabels == 1, labels = labels(indx,:); end;
+if isempty(roiMaskI), return; end;
+%indx = roiMask; %[1 2 5] preserves 1st, 2nd 5th
+smallmat = mat(roiMaskI,:); %remove rows
+mat = smallmat(:,roiMaskI); %remove columns
+%if shrinkLabels == 1, labels = labels(roiMaskI,:); end;
 %end shrink_matxCustomSub()
 
 function [smalllabels, smallmat] = shrink_matxSub(labels, mat)
