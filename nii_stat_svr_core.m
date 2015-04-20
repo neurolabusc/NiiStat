@@ -86,18 +86,11 @@ for subj = 1:n_subj
     train_idx = setdiff (1:n_subj, subj);
     train_data = data (train_idx, :);
     train_labels = labels (train_idx);
-    %SVM = svmtrain (train_labels, train_data, '-s 3');
-    %predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     if verbose
         SVM = svmtrain (train_labels, train_data, cmd);
         predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     else %if verbose else silent
         [~, SVM] = evalc(sprintf('svmtrain (train_labels, train_data, ''%s'')',cmd)'); 
-        %if islinear
-        %   [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 0 -s 3'')'); %-t 0 = linear
-        %else
-        %    [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 2 -s 3'')'); %-t 2 = RBF
-        %end
         [~, predicted_labels(subj), ~, ~] = evalc ('svmpredict (labels(subj), data(subj, :), SVM)');
     end %if verbose else silent
     map (subj, :) = SVM.sv_coef' * SVM.SVs;
@@ -106,14 +99,12 @@ end
 %[r, p] = corr (predicted_labels', labels)
 [r, p] = corrcoef (predicted_labels', labels);
 r = r(1,2); %r = correlation coefficient
-p = p(1,2); %p = probability
+p = p(1,2) /2; %p = probability, divide by two to make one-tailed 
 if (r < 0.0) %one tailed: we predict predicted scores should positively correlate with observed scores
-   p = 1.0-p; 
-else %else SVR performed worse than chance!
-    p = p/2;
+    p = 1.0-p; %http://www.mathworks.com/matlabcentral/newsreader/view_thread/142056
 end
 fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d\n',r,r^2, p,size (data, 1),size (data, 2));
-
+%weighted results
 mean_map = mean (map, 1);
 z_map = mean_map ./ std (mean_map);
 if exist('good_idx','var') %insert NaN for unused features
@@ -122,12 +113,12 @@ if exist('good_idx','var') %insert NaN for unused features
     z_mapOK(good_idx) = z_map;
     z_map = z_mapOK;
 end
+%plot results
 plot (labels, predicted_labels, 'o');
 axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
-
 %end nii_stat_svr_core()
 
 function num = tabreadSub(tabname)
