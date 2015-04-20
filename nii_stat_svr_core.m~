@@ -64,7 +64,7 @@ elseif normRowCol ==  2% rows [1], or columns [2]
     data = normColSub(data);
 end
 labels = num (:, size (num, 2));
-labels = normColSub(labels); %CR 20April2015
+
 predicted_labels = zeros(n_subj,1); %pre-allocate memory
 map = zeros(size(data)); %pre-allocate memory
 
