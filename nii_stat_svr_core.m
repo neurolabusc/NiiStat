@@ -105,14 +105,14 @@ end
 %accuracy = sum (predicted_labels' == labels) / n_subj;
 %[r, p] = corr (predicted_labels', labels)
 [r, p] = corrcoef (predicted_labels', labels);
-r = r(1,2); %return 
-p = p(1,2); %return 
-if (r < 0.0)
+r = r(1,2); %r = correlation coefficient
+p = p(1,2); %p = probability
+if (r < 0.0) %one tailed: we predict predicted scores should positively correlate with observed scores
    p = 1.0-p; 
-else
+else %else SVR performed worse than chance!
     p = p/2;
 end
-fprintf('r=%g p=%g numObservations=%d numPredictors=%d\n',r,p,size (data, 1),size (data, 2));
+fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d\n',r,r^2, p,size (data, 1),size (data, 2));
 
 mean_map = mean (map, 1);
 z_map = mean_map ./ std (mean_map);
