@@ -1,6 +1,10 @@
-function [r, z_map, labels, predicted_labels] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear)
+function [r, z_map, labels, predicted_labels] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear, nuSVR)
 % xlsname : file name to analyze
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
+% verbose : text details none [0, default], extensive [1]
+% minUnique : mininum number of unique features to use a feature (0 = default)
+% islinear: use linear (1, default) or non-linear (0) fitting
+% nuSVR : use nu-SVR (1) or epsilon-SVR (0, default)
 %example
 % nii_stat_svr_core ('lesionacute_better_svr.tab')
 
@@ -68,6 +72,16 @@ labels = normColSub(labels); %CR 20April2015
 predicted_labels = zeros(n_subj,1); %pre-allocate memory
 map = zeros(size(data)); %pre-allocate memory
 
+if islinear 
+    cmd = '-t 0';
+else
+    cmd = '-t 2';
+end
+if exist('nuSVR','var') && nuSVR
+    cmd = [cmd ' -s 4'];
+else
+    cmd = [cmd ' -s 3'];
+end
 for subj = 1:n_subj
     train_idx = setdiff (1:n_subj, subj);
     train_data = data (train_idx, :);
@@ -75,18 +89,15 @@ for subj = 1:n_subj
     %SVM = svmtrain (train_labels, train_data, '-s 3');
     %predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     if verbose
-        if islinear
-            SVM = svmtrain (train_labels, train_data, '-t 0 -s 3');
-        else
-            SVM = svmtrain (train_labels, train_data, '-t 2 -s 3');
-        end
+        SVM = svmtrain (train_labels, train_data, cmd);
         predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
     else %if verbose else silent
-        if islinear
-           [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 0 -s 3'')'); %-t 0 = linear
-        else
-            [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 2 -s 3'')'); %-t 2 = RBF
-        end
+        [~, SVM] = evalc(sprintf('svmtrain (train_labels, train_data, ''%s'')',cmd)'); 
+        %if islinear
+        %   [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 0 -s 3'')'); %-t 0 = linear
+        %else
+        %    [~, SVM] = evalc ('svmtrain (train_labels, train_data, ''-t 2 -s 3'')'); %-t 2 = RBF
+        %end
         [~, predicted_labels(subj), ~, ~] = evalc ('svmpredict (labels(subj), data(subj, :), SVM)');
     end %if verbose else silent
     map (subj, :) = SVM.sv_coef' * SVM.SVs;
@@ -94,7 +105,15 @@ end
 %accuracy = sum (predicted_labels' == labels) / n_subj;
 %[r, p] = corr (predicted_labels', labels)
 [r, p] = corrcoef (predicted_labels', labels);
-fprintf('r=%g p=%g numObservations=%d numPredictors=%d\n',r(1,2),p(1,2),size (data, 1),size (data, 2));
+r = r(1,2); %return 
+p = p(1,2); %return 
+if (r < 0.0)
+   p = 1.0-p; 
+else
+    p = p/2;
+end
+fprintf('r=%g p=%g numObservations=%d numPredictors=%d\n',r,p,size (data, 1),size (data, 2));
+
 mean_map = mean (map, 1);
 z_map = mean_map ./ std (mean_map);
 if exist('good_idx','var') %insert NaN for unused features
@@ -108,7 +127,7 @@ axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
-r = r(1,2); %return 
+
 %end nii_stat_svr_core()
 
 function num = tabreadSub(tabname)
