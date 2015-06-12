@@ -1,10 +1,11 @@
-function [r, z_map, labels, predicted_labels] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear, nuSVR)
+function [r, z_map, labels, predicted_labels] = nii_stat_svr_core_GY (xlsname, normRowCol, verbose, minUnique, islinear, nuSVR, clipping)
 % xlsname : file name to analyze
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
 % verbose : text details none [0, default], extensive [1]
 % minUnique : mininum number of unique features to use a feature (0 = default)
 % islinear: use linear (1, default) or non-linear (0) fitting
 % nuSVR : use nu-SVR (1) or epsilon-SVR (0, default)
+% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
 %example
 % nii_stat_svr_core ('lesionacute_better_svr.tab')
 
@@ -87,13 +88,33 @@ for subj = 1:n_subj
     train_data = data (train_idx, :);
     train_labels = labels (train_idx);
     if verbose
-        SVM = svmtrain (train_labels, train_data, cmd);
-        predicted_labels(subj) = svmpredict (labels(subj), data(subj, :), SVM);
+        SVM = svmtrain (train_labels, train_data, cmd);       
+        % added by Grigori Yourganov: scale correction
+        % step 1: predict training labels
+        pred_train_labels = svmpredict (train_labels, train_data, SVM);                  
     else %if verbose else silent
         [~, SVM] = evalc(sprintf('svmtrain (train_labels, train_data, ''%s'')',cmd)'); 
-        [~, predicted_labels(subj), ~, ~] = evalc ('svmpredict (labels(subj), data(subj, :), SVM)');
+        [out, pred_train_labels] = evalc ('svmpredict (train_labels, train_data, SVM);');        
     end %if verbose else silent
-    map (subj, :) = SVM.sv_coef' * SVM.SVs;
+    % step 2 of scale correction: estimate scale&offset
+    y = train_labels; %regression line: y = a*x + b
+    x = pred_train_labels;
+    m = length (train_labels);
+    c = (m+1)*sum(x.^2) - sum(x)*sum(x);
+    a = ((m+1)*sum(x.*y) - sum(x)*sum(y)) / c;
+    b = (sum(x.^2)*sum(y) - sum(x)*sum(x.*y)) / c;
+    % predict the test labels
+    ww = SVM.sv_coef' * SVM.SVs; % model weights
+    bb = -SVM.rho; % model offset
+    if (clipping == 1)
+        ww (find (ww > 0)) = 0;
+    elseif (clipping == -1)
+        ww (find (ww < 0)) = 0;
+    end
+    predicted_labels(subj) = ww*data(subj, :)' + bb;
+    % step 3 of scale correction: rescale using estimated scale&offset
+    predicted_labels(subj) = a*predicted_labels(subj) + b;
+    map (subj, :) = ww; % used to be SVM.sv_coef' * SVM.SVs;
 end
 %accuracy = sum (predicted_labels' == labels) / n_subj;
 %[r, p] = corr (predicted_labels', labels)

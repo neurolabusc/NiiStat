@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 3/31/2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 6/6/2015 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -35,7 +35,7 @@ end
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
-[designMat, designUsesNiiImages] = readDesign (xlsname);
+[designMat, designUsesNiiImages] = nii_read_design (xlsname);
 [~, xlsname, ~] = fileparts(xlsname);
 if ~exist('regressBehav','var')
    regressBehav = false; 
@@ -139,7 +139,6 @@ end
 for i = 1: length(modalityIndices) %for each modality
     modalityIndex = modalityIndices(i);
     for j = 1: length(roiIndices)
-        
         roiIndex = roiIndices(j);
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
         processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce);
@@ -153,68 +152,68 @@ function nii = isNII (filename)
 nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
 %end isNII()
 
-function [designMat, designUsesNiiImages] = readDesign (xlsname)
-designUsesNiiImages = false;
-[~,~,x] = fileparts(xlsname);
-if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    dMat = nii_tab2mat(xlsname);
-else
-    dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
-end
-SNames = fieldnames(dMat);
-numFields = length (SNames);
-if numFields < 2
-    error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
-end
-numNII = 0; %number of NIfTI files
-numMat = 0; %number of Mat files
-numOK = 0;
-%designMat = [];
-for i=1:size(dMat,2)
-    matname = deblank( dMat(i).(SNames{1}));
-    isValid = false;
-    if numel(SNames) > 1
-        for j = 2:numel(SNames) 
-            b = dMat(i).(SNames{j});
-            if ~isempty(b) && isnumeric(b) && isfinite(b)
-                isValid = true;
-            end
-        end
-    end
-    if ~isValid
-        fprintf('Warning: no valid behavioral data for %s\n',matname);
-        matname = '';
-    end
-    if ~isempty(matname)
-        
-        [matname] = findMatFileSub(matname,xlsname);
-        
-        [~, ~, ext] = fileparts(matname);
-
-        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-            if strcmpi('.mat',ext)
-                numMat = numMat + 1;
-            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-                numNII = numNII + 1;
-            end
-            dMat(i).(SNames{1}) = matname;
-            numOK = numOK + 1;
-            designMat(numOK) = dMat(i); %#ok<AGROW>
-            
-        end
-    end
-end
-if (numNII + numMat) == 0
-    error('Unable to find any of the images listed in the file %s\n',xlsname);
-end
-if (numNII > 0) && (numMat >0) %mixed file
-    error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
-end
-if (numNII > 0)
-    fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
-    designUsesNiiImages = true;
-end
-%end readDesign()
+% function [designMat, designUsesNiiImages] = readDesign (xlsname)
+% designUsesNiiImages = false;
+% [~,~,x] = fileparts(xlsname);
+% if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
+%     dMat = nii_tab2mat(xlsname);
+% else
+%     dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
+% end
+% SNames = fieldnames(dMat);
+% numFields = length (SNames);
+% if numFields < 2
+%     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
+% end
+% numNII = 0; %number of NIfTI files
+% numMat = 0; %number of Mat files
+% numOK = 0;
+% %designMat = [];
+% for i=1:size(dMat,2)
+%     matname = deblank( dMat(i).(SNames{1}));
+%     isValid = false;
+%     if numel(SNames) > 1
+%         for j = 2:numel(SNames) 
+%             b = dMat(i).(SNames{j});
+%             if ~isempty(b) && isnumeric(b) && isfinite(b)
+%                 isValid = true;
+%             end
+%         end
+%     end
+%     if ~isValid
+%         fprintf('Warning: no valid behavioral data for %s\n',matname);
+%         matname = '';
+%     end
+%     if ~isempty(matname)
+%         
+%         [matname] = findMatFileSub(matname,xlsname);
+%         
+%         [~, ~, ext] = fileparts(matname);
+% 
+%         if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+%             if strcmpi('.mat',ext)
+%                 numMat = numMat + 1;
+%             elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+%                 numNII = numNII + 1;
+%             end
+%             dMat(i).(SNames{1}) = matname;
+%             numOK = numOK + 1;
+%             designMat(numOK) = dMat(i); %#ok<AGROW>
+%             
+%         end
+%     end
+% end
+% if (numNII + numMat) == 0
+%     error('Unable to find any of the images listed in the file %s\n',xlsname);
+% end
+% if (numNII > 0) && (numMat >0) %mixed file
+%     error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
+% end
+% if (numNII > 0)
+%     fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
+%     designUsesNiiImages = true;
+% end
+% %end readDesign()
 
 function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce)
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
@@ -341,7 +340,7 @@ for i = 1:size(matnames,1)
             dat = load (in_filename);
             [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat, subfield);
             %if  issubfieldSub(dat,'lesion.dat') 
-            %	fprintf ('Volume %g for %s\n',sum(dat.lesion.dat(:)), in_filename);
+            %	fprintf ('Volume\t%g\tfor\t%s\n',sum(dat.lesion.dat(:)), in_filename);
             %end
             %if  isfield(dat,subfield) % && ~isempty (data.behav)
             if (roiIndex > 0) && (~kAnalyzeCorrelationNotMean) && ~issubfieldSub(dat,subfield)
@@ -391,6 +390,7 @@ for i = 1:size(matnames,1)
         fprintf('Unable to find file %s\n', in_filename);
     end
 end
+
 clear('dat'); %these files tend to be large, so lets explicitly free memory
 n_subj = idx;
 if n_subj < 3
@@ -720,49 +720,48 @@ smallmat = smallmat(:,index);
 smalllabels = labels(index,:);
 %end shrink_matxSub()
 
-function [fname] = findMatFileSub(fname, xlsname)
-%looks for a .mat file that has the root 'fname', which might be in same
-%folder as Excel file xlsname
-fnameIn = fname;
-[pth,nam,ext] = fileparts(fname);
+% function [fname] = findMatFileSub(fname, xlsname)
+% %looks for a .mat file that has the root 'fname', which might be in same
+% %folder as Excel file xlsname
+% fnameIn = fname;
+% [pth,nam,ext] = fileparts(fname);
+% if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MAT file
+%     ext = '.mat';
+%     %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
+% else
+%     if exist(fname, 'file') == 2, return; end;
+% end
+% fname = fullfile(pth,[nam '.mat']);
+% if exist(fname, 'file'), return; end;
+% %next - check folder of Excel file
+% [xpth,~,~] = fileparts(xlsname);   
+% fname = fullfile(xpth,[nam ext]);
+% if exist(fname, 'file'), return; end;
+% fname = fullfile(xpth,[nam '.mat']);
+% if exist(fname, 'file'), return; end;
+% %next check for nii file:
+% fname = findNiiFileSub(fnameIn, xlsname);
+% if exist(fname, 'file'), return; end;
+% fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
+% fname = '';
+% %end findMatFileSub()
 
-if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MAT file
-    ext = '.mat';
-    %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
-else
-    if exist(fname, 'file') == 2, return; end;
-end
-fname = fullfile(pth,[nam '.mat']);
-if exist(fname, 'file'), return; end;
-%next - check folder of Excel file
-[xpth,~,~] = fileparts(xlsname);   
-fname = fullfile(xpth,[nam ext]);
-if exist(fname, 'file'), return; end;
-fname = fullfile(xpth,[nam '.mat']);
-if exist(fname, 'file'), return; end;
-%next check for nii file:
-fname = findNiiFileSub(fnameIn, xlsname);
-if exist(fname, 'file'), return; end;
-fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
-fname = '';
-%end findMatFileSub()
-
-function [fname] = findNiiFileSub(fname, dir)
-[pth,nam,~] = fileparts(fname);
-fname = fullfile(pth,[nam '.nii']);
-if exist(fname, 'file'), return; end;
-fname = fullfile(pth,[nam '.hdr']);
-if exist(fname, 'file'), return; end;
-if exist(dir,'file') == 7
-    pth = dir;
-else
-    [pth,~,~] = fileparts(dir);
-end
-fname = fullfile(pth,[nam '.nii']);
-if exist(fname, 'file'), return; end;
-fname = fullfile(pth,[nam '.hdr']);
-if exist(fname, 'file'), return; end;
-%findNiiFileSub
+% function [fname] = findNiiFileSub(fname, dir)
+% [pth,nam,~] = fileparts(fname);
+% fname = fullfile(pth,[nam '.nii']);
+% if exist(fname, 'file'), return; end;
+% fname = fullfile(pth,[nam '.hdr']);
+% if exist(fname, 'file'), return; end;
+% if exist(dir,'file') == 7
+%     pth = dir;
+% else
+%     [pth,~,~] = fileparts(dir);
+% end
+% fname = fullfile(pth,[nam '.nii']);
+% if exist(fname, 'file'), return; end;
+% fname = fullfile(pth,[nam '.hdr']);
+% if exist(fname, 'file'), return; end;
+% %findNiiFileSub
 
 function b = isBinomialSub(i)
 %returns true if vector is binomial (less than three distinct values)

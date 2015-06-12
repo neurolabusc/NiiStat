@@ -85,21 +85,11 @@ end
 
 %  subfunctions follow
 function outStr = CleanStrSubDot(inStr) %for field names
-outStr =regexprep(inStr,' ','_');
-outStr =regexprep(outStr,'\\','_');
-outStr =regexprep(outStr,'//','_');
-outStr =regexprep(outStr,':','');
-outStr =regexprep(outStr,'-','m');
-outStr =regexprep(outStr,'\.','p'); %Illegal to have field names with a dot
-%end CleanStrSubDot()
-
-function outStr = CleanStrSub(inStr) %for field values
-%'Wab IQ: 2' -> 'WabIQ_2'
-outStr =regexprep(inStr,' ','_');
-outStr =regexprep(outStr,':','');
-%I wonder if next uncommented line crashs software on older versions
-% Next line crashes software if numeric value set to have "text" format (in Excel, Format/Cells... set value to Text
-% for example "3.14" must preserve the dot for num2string
-% we use the subroutine CleanStrSubDot when a dot is invalid (e.g. Matlab does not allow fields with a dot in their name)
-outStr(find (outStr == '.')) = '_'; %added by Grigori; dots are not removed by "regexprep"
+outStr = regexprep(inStr,' ','_');
+outStr = regexprep(outStr,'\\','_');
+outStr = regexprep(outStr,'/','_');
+outStr = regexprep(outStr,'@','_');
+outStr = regexprep(outStr,':','');
+outStr = regexprep(outStr,'-','m');
+outStr = regexprep(outStr,'\.','p'); %Illegal to have field names with a dot
 %end CleanStrSubDot()
