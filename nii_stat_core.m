@@ -129,13 +129,38 @@ end
 if (kNumRandPerm < -1) && (size(beh,2) <= 1) %special case: nuisance regressors which requires multiple behaviors
     error('Error: only one behavioral variable provided: unable to control for nuisance regressors (solution: either provide more behavioral data or specify positive number of permutations');
 elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regressors.
-    fprintf('Computing regression with nuisance variables for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
     X1 = [beh, ones(numObs,1)];%add constant column for intercept
-    for i = 1: numFactors
+    global global_flContrast
+    if isempty(global_flContrast) 
+        fprintf('Computing regression with nuisance variables for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
+        for i = 1: numFactors
+            contrasts = zeros(numFactors+1,1); %+1 since last column is constant intercept
+            contrasts(i) = 1;
+            [z(:,i), threshMin(i), threshMax(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE);
+        end;
+    else 
+        fprintf('Computing freedman-lane regression with custom contrast for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
         contrasts = zeros(numFactors+1,1); %+1 since last column is constant intercept
-        contrasts(i) = 1;
+        contrasts(1:length(global_flContrast)) = global_flContrast;
+        if numel(global_flContrast) ~= numel(contrasts)
+            fprintf(' Noted: contrast zero padded %s\n',mat2str(contrasts'));
+        end
+        %we will only analyse a single contrast
+        numFactors = 1;
+        z = zeros(numVox,numFactors); %pre-allocate observed z-scores
+        threshMax = zeros(numFactors,1); %pre-allocate statistical threhsold
+        threshMin = threshMax;  %pre-allocate statistical threhsold
+        i = 1;
         [z(:,i), threshMin(i), threshMax(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE);
+        %give the contrast a meaningful name
+        s = mat2str(global_flContrast);
+        s = strrep(s, ' ', '_');
+        s = strrep(s, ']', '');
+        s = strrep(s, '[', '');
+        beh_names = [];
+        beh_names{1} = ['CustomContrast_' s];
     end;
+    
 elseif isBinomialBehav && isBinomialLes %binomial data
     fprintf('Computing Liebermeister measures for %d regions/voxels with %d behavioral variables(positive Z when 0 voxels have behavior 0 and 1 voxels have behavior 1).\n',length(good_idx),size(beh,2));
     for i = 1: size(beh,2)
@@ -192,7 +217,7 @@ datetime=datestr(now);
 datetime=strrep(datetime,':',''); %Replace colon with underscore
 datetime=strrep(datetime,'-','');%Replace minus sign with underscore
 datetime=strrep(datetime,' ','_');%Replace space with underscore
-newdir = [datetime statname];
+newdir = [statname '_' datetime ];
 mkdir(newdir);
 cd(newdir);
 %chDirSub()

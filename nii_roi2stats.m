@@ -1,7 +1,7 @@
 function [stat] = nii_roi2stats (roiName, inhdr, inimg, statName,diskName)
 %compute mean intensity of input image for every region of interest
 % NB: replaces nii_roi_stats: now able to reslice data if required
-%  roiName : region of interest to use ('jhu', 'bro', 'fox', 'tpm','aal') 
+%  roiName : region of interest to use ('jhu', 'bro', 'fox', 'tpm','aal')
 %  inhdr : either name of NIfTI image or NIfTI header strucutre
 %  inimg : (only used if inhdr is a structure): input image data
 %  statName : (optional) prefix for struct, e.g. 'rest', 'cbf'
@@ -23,17 +23,17 @@ if ~exist('statName','var')
     statName = '';
 end;
 if (length(inhdr) < 1), return; end; %escape if no selection
-if ~isstruct(inhdr) 
-    if (exist(inhdr,'file') == 0) 
+if ~isstruct(inhdr)
+    if (exist(inhdr,'file') == 0)
         fprintf('%s error: unable to find image named %s\n',mfilename,inhdr);
         return;
     end;
     inhdr = spm_vol(inhdr); %load input header
 	inimg = spm_read_vols(inhdr); %load input image
 end
-if (length(inimg) < 1), 
+if (length(inimg) < 1),
     fprintf('No image data to reslice');
-    return; 
+    return;
 end; %escape if no selection
 niiName = [roiName '.nii'];
 if exist(niiName, 'file') ~= 2 %unable to find image
@@ -49,7 +49,9 @@ if exist(txtName, 'file') ~= 2 %unable to find image
     fprintf('%s did not find region of interest named %s\n',mfilename, txtName);
     return;
 end
-proi = [statName  roiShortName]; 
+proi = [statName  roiShortName];
+% 666 todo make sure .label has same number of elements as .mean
+
 stat.(proi).label = labelSub (txtName);
 rhdr = spm_vol (deblank (niiName));
 rimg = spm_read_vols (rhdr);
@@ -57,21 +59,21 @@ if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3)
     if ndims(inimg) < 4
         %we could warp the ROI to match the image, however since ROIs are indexed we would need to use nearest neighbor interpolation
         % therefore, we warp all images to match the ROI
-        inimgOrig = inimg; %load input image 
+        inimgOrig = inimg; %load input image
         fprintf('reslicing %s to match %s\n',inhdr(1).fname,rhdr.fname);
         inimg = zeros([rhdr.dim(1:3),size(inimg,4)]);
         %inhdr1 = inhdr(1); %first volume
         imgdim = rhdr.dim;
-        for v = 1: size(inimg,4) 
-            inimgOrig1 = inimgOrig(:,:,:,v); 
+        for v = 1: size(inimg,4)
+            inimgOrig1 = inimgOrig(:,:,:,v);
             for i = 1:imgdim(3)
                 M = inv(spm_matrix([0 0 -i])*inv(rhdr.mat)*inhdr(1).mat); %#ok<MINV>
                 inimg(:,:,i,v) = spm_slice_vol(inimgOrig1, M, imgdim(1:2), 1); % (linear interp)
-            end        
+            end
         end; %for each volume
     else
         %for 4D images, we reslice the ROI to match the imag
-        rimgOrig = rimg; %load input image 
+        rimgOrig = rimg; %load input image
         fprintf('reslicing %s to match %s\n',rhdr.fname, inhdr(1).fname);
         rimg = zeros(inhdr(1).dim(1:3));
         %inhdr1 = inhdr(1); %first volume
@@ -79,7 +81,7 @@ if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3)
         for i = 1:imgdim(3)
             M = inv(spm_matrix([0 0 -i])*inv(inhdr(1).mat)*rhdr.mat); %#ok<MINV>
             rimg(:,:,i) = spm_slice_vol(rimgOrig, M, imgdim(1:2), 0); % (nearest neighbor interp)
-        end     
+        end
         %h =inhdr(1);
         %h.fname = 'test.nii';
         %h.dim = inhdr(1).dim(1:3);
@@ -87,9 +89,17 @@ if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3)
     end
 end %if image must be resliced to match ROI
 if size(inimg,4) == 1 %3D data
+    
     stat.(proi).mean = roiMeanSub (inimg, rimg);
+    if (size(stat.(proi).label,1) ~= size(stat.(proi).mean,1))
+        error('Error: somthing is wrong with the ROI file: %d labels but %d regions', size(stat.(proi).label,1), size(stat.(proi).mean,1));
+    end;
+    
 else
     [stat.(proi).r, stat.(proi).p] = roiCorrelSub (inimg, rimg);
+    if (size(stat.(proi).label,1) ~= size(stat.(proi).r,1))
+        error('Error: somthing is wrong with the ROI file: %d labels but %d regions', size(stat.(proi).label,1), size(stat.(proi).r,1));
+    end;
 end
 if length(diskName) < 1, return; end
 if exist(diskName,'file')
@@ -108,20 +118,20 @@ while ischar(tline)
     label=strvcat(label,tline); %#ok<REMFF1>
     tline = fgetl(fid);
 end
-fclose(fid); 
+fclose(fid);
 %end labelSub()
 
 function [mn] = roiMeanSub (img, rimg)
 %find mean intensity for each region of interest in a parcellated image
 if ~isequal(size(img(1:3)),size(rimg(1:3)))
-   fprintf('roiMeanSub error: images must have same dimensions\n'); 
+   fprintf('roiMeanSub error: images must have same dimensions\n');
    return;
 end
 nroi = max(rimg(:));
 mn = zeros(nroi,1);
 for r = 1:nroi
     %idx = (rimg(:) == r);
-    idx = (rimg(:) == r) & (~isnan(img(:)) ); 
+    idx = (rimg(:) == r) & (~isnan(img(:)) );
     mn(r) = mean(img(idx));
     %fprintf('Region %d has %d voxels with a mean of %f\n',r,sum(idx), mn(r));
 end
@@ -133,7 +143,7 @@ if ~exist('showGraph','var') %no image
     showGraph = false;
 end
 if ~isequal(size(img(1:3)),size(rimg(1:3)))
-   fprintf('roiCorrelSub error: image and ROI must have same dimensions\n'); 
+   fprintf('roiCorrelSub error: image and ROI must have same dimensions\n');
    return;
 end
 [~, ~, ~, nV] = size(img);

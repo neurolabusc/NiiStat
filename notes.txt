@@ -1,5 +1,15 @@
-global roiMask
-roiMask = [1 3 4];
+NiiStat includes some "global" values. These are for advanced uses. Be aware that a global value stay in effect until you quit matlab or you set it to empty. Therefore, once you set a global, all future calls to nii_stat will use this value.
+
+global global_flContrast
+global_flContrast = [1 -1];
+nii_stat
+...
+global_flContrast = []
+
+The value "global_roiMask" allows you to explicitly restrict regions of interest.
+
+global global_roiMask
+global_roiMask = [1 3 4];
 nii_stat
 
 l = load('LM1045.mat')
@@ -31,14 +41,14 @@ B = sum(sum(triu(ones(size(les_names,1)),1)))
 
   numel(les(1, :))
     B = sum(sum(triu(ones(size(les_names,1)),1)))
-   
+
    nRow = size(les_names,1))
    nRow = 110
    sum(sum(triu(ones(nRow),1)))
-   
-   sum(sum(triu(ones(nRow,1))) 
+
+   sum(sum(triu(ones(nRow,1)))
     triu(zeros(110))
-    
+
     if (size(les_names,1) > 1) &&  (size(les_names,1) == numel( les(1, :)))   %for ROI analyses
   %this next bit allow us to remove ROIs
   % global roiMask
@@ -56,5 +66,5 @@ B = sum(sum(triu(ones(size(les_names,1)),1)))
     end
     les(:, rMask)=[]; %remove columns
     les_names(rMask,:) = [];
-  end   
+  end
 end

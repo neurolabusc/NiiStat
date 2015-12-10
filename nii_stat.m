@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 6/6/2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 10 Dec 2015 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -74,22 +74,34 @@ doVoxReduce = false;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
+    cfg_filename = 'niistat_cfg.mat';
     prompt = {'Number of permutations (-1 for FDR, 0 for Bonferroni, large number for permute (3000), very small number for FreedmanLane(-3000):','Corrected P theshold:',...
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],... 
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]'
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]',...
+        'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
     num_lines = 1;
+    def = [];
+    if exist(cfg_filename,'file')
+        s = load(cfg_filename);
+        if isfield(s,'answer')
+            def = s.answer;
+        end;
+    end;
+    if numel(def) ~= 7
+      def = {'0','0.05','2','3','1','',''};  
+    end
     if designUsesNiiImages
-        def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
-    else
-        def = {'4000','0.05','2','6','1',''};
-        %def = {'4000','0.05','2','6','7','5'};
+        def{4} = 'UNUSED (design file specifies voxelwise images)';,
+        def{5} = 'UNUSED (design file specifies voxelwise images)';
+    
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
     if isempty(answer), return; end;
+    save(cfg_filename,'answer') % save user preferences
     numPermute = str2double(answer{1});
     pThresh = str2double(answer{2});
     minOverlap = str2double(answer{3});
@@ -131,6 +143,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
+    statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
     roiIndices = 0;
@@ -141,7 +154,7 @@ for i = 1: length(modalityIndices) %for each modality
     for j = 1: length(roiIndices)
         roiIndex = roiIndices(j);
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce);
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname);
     end
 end
 %end nii_stat_mat()
@@ -215,7 +228,7 @@ nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce)
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname)
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -257,7 +270,9 @@ else
     [~,nam] = fileparts(deblank(kROIs(roiIndex,:)));
     ROIfield = [deblank(kModalities(modalityIndex,:)) '_' nam];
 end
-statname = [ROIfield '_' xlsname];%sprintf ('%s%s',deblank(kModalities(modalityIndex,:)),deblank(kROIs(roiIndex,:)));
+if ~exist('statname','var') || isempty(statname)
+    statname = [ROIfield '_' xlsname];%sprintf ('%s%s',deblank(kModalities(modalityIndex,:)),deblank(kROIs(roiIndex,:)));
+end;
 SNames = fieldnames(designMat);
 matnames = [];
 for i=1:size(designMat,2)
@@ -492,11 +507,12 @@ if roiIndex == 0 %voxelwise lesion analysis
         fprintf('Warning: Not a number values in images replaced with zeros\n');
     end
     if  exist('mask_filename','var') && ~isempty(mask_filename) %apply explicit masking image
+            error('Explicit mask not functional in this version - UPGRADE');
             mask_hdr = spm_vol (mask_filename);
             mask_img = spm_read_vols (mask_hdr);
             mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
             if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
-                fprintf('Warning: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
+                fprintf('WARNING: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
                 inimg = mask_img; %reshape(mask_img,mask_hdr.dim(1:3)); %turn 1D vector into 3D
                 imgdim = hdr.dim(1:3);
                 mask_img = zeros(imgdim);
@@ -507,11 +523,16 @@ if roiIndex == 0 %voxelwise lesion analysis
             end %if dimensions differ
             mask_img = mask_img(:); %create a 1D vector
             fprintf('Including the %d voxels (of %d possible) in mask %s\n', nnz(mask_img), numel(mask_img), mask_filename);
+            %size(les)
+            %size(mask_img)
             for i = 1:n_subj
                 les(i, mask_img == 0) = 0;       %#ok<AGROW>
             end  %mask each subject's data
     end %if mask
 else %if voxelwise else region of interest analysis
+    if  exist('mask_filename','var') && ~isempty(mask_filename) 
+       error('Explicit mask only for voxelwise data');
+    end
     %NEXT roi masking
     roiMaskI = []; %inclusive ROI mask - e.g. if [1 2 12] then only these 3 regions analyzed...
     les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
@@ -520,8 +541,8 @@ else %if voxelwise else region of interest analysis
         if isempty(answer), return; end;
         roiMaskI = str2num(answer{1});
     else
-        global roiMask
-        roiMaskI = roiMask; %inclusion mask
+        global global_roiMask
+        roiMaskI = global_roiMask; %inclusion mask
     end
     if ~isempty(roiMaskI)
         les_names = les_names(roiMaskI,:);
