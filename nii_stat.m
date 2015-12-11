@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 10 Dec 2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 11 Dec 2015 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -288,10 +288,16 @@ else
     subfield = '.mean';
 end
 subfield = [ROIfield subfield];
+%explicit voxel mapping
+requireVoxMask =  (roiIndex == 0) && exist('mask_filename','var') && ~isempty(mask_filename); %apply explicit masking image
+if (requireVoxMask) && (doTFCE == 1)
+   error('Explicit mask not (yet) compatible with TFCE'); 
+end
+
 %for large voxel datasets - first pass to find voxels that vary
 voxMask = [];
 %if false
-if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %voxelwise, large study
+if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1)) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
     for i = 1:size(matnames,1)
@@ -302,11 +308,11 @@ if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %
             error('Please use nii_nii2mat before conducting a large voxelwise statistics');
         elseif (exist (in_filename, 'file'))
             dat = load (in_filename);
-            
             if  issubfieldSub(dat,subfield)
+                hdr = dat.(ROIfield).hdr;
                 img = dat.(ROIfield).dat;
                 if doVoxReduce
-                    hdr = dat.(ROIfield).hdr;
+                    
                     [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
                 end
                 %store behavioral and relevant imaging data for ALL relevant valid individuals
@@ -326,6 +332,23 @@ if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %
     end %for each individual
     voxMask(voxMask < minOverlap) = 0;
     voxMask(voxMask > 0) = 1;
+    if requireVoxMask
+        mask_hdr = spm_vol (mask_filename);
+        mask_img = spm_read_vols (mask_hdr);
+        mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
+        if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
+            fprintf('WARNING: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
+            inimg = mask_img; %reshape(mask_img,mask_hdr.dim(1:3)); %turn 1D vector into 3D
+            imgdim = hdr.dim(1:3);
+            mask_img = zeros(imgdim);
+            for i = 1:imgdim(3)
+                M = inv(spm_matrix([0 0 -i])*inv(hdr.mat)*mask_hdr.mat); %#ok<MINV>
+                mask_img(:,:,i) = spm_slice_vol(inimg, M, imgdim(1:2), 1); % 1=linear interp; 0=nearest neighbor            
+            end %for each slice
+        end %if dimensions differ
+        fprintf('Explicit voxel mask includes %d of %d voxels\n',sum(mask_img(:) > 0), numel(mask_img));
+        voxMask(mask_img == 0) = 0;
+    end
     %voxMask = voxMask(:); %make 1d
     nOK = sum(voxMask(:) > 0);
     fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(voxMask),100*nOK/numel(voxMask), minOverlap );
@@ -506,29 +529,6 @@ if roiIndex == 0 %voxelwise lesion analysis
         les(nanIndex) = 0;
         fprintf('Warning: Not a number values in images replaced with zeros\n');
     end
-    if  exist('mask_filename','var') && ~isempty(mask_filename) %apply explicit masking image
-            error('Explicit mask not functional in this version - UPGRADE');
-            mask_hdr = spm_vol (mask_filename);
-            mask_img = spm_read_vols (mask_hdr);
-            mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
-            if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
-                fprintf('WARNING: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
-                inimg = mask_img; %reshape(mask_img,mask_hdr.dim(1:3)); %turn 1D vector into 3D
-                imgdim = hdr.dim(1:3);
-                mask_img = zeros(imgdim);
-                for i = 1:imgdim(3)
-                    M = inv(spm_matrix([0 0 -i])*inv(hdr.mat)*mask_hdr.mat); %#ok<MINV>
-                    mask_img(:,:,i) = spm_slice_vol(inimg, M, imgdim(1:2), 1); % 1=linear interp; 0=nearest neighbor            
-                end %for each slice
-            end %if dimensions differ
-            mask_img = mask_img(:); %create a 1D vector
-            fprintf('Including the %d voxels (of %d possible) in mask %s\n', nnz(mask_img), numel(mask_img), mask_filename);
-            %size(les)
-            %size(mask_img)
-            for i = 1:n_subj
-                les(i, mask_img == 0) = 0;       %#ok<AGROW>
-            end  %mask each subject's data
-    end %if mask
 else %if voxelwise else region of interest analysis
     if  exist('mask_filename','var') && ~isempty(mask_filename) 
        error('Explicit mask only for voxelwise data');

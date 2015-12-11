@@ -1,10 +1,10 @@
 NiiStat includes some "global" values. These are for advanced uses. Be aware that a global value stay in effect until you quit matlab or you set it to empty. Therefore, once you set a global, all future calls to nii_stat will use this value.
 
 global global_flContrast
-global_flContrast = [1 -1];
+global_flContrast = [1 -1]; %this will be zero padded, so if you have four conditions (plus implicit intercept) it will be [1 -1 0 0 0]
 nii_stat
 ...
-global_flContrast = []
+global_flContrast = []; %remove this so future calls treat each column as nuisance regressor
 
 The value "global_roiMask" allows you to explicitly restrict regions of interest.
 
