@@ -6,7 +6,7 @@ function [file_list, number_list, idx] = nii_modality_list(name)
 % [file_list, number_list, idx] = nii_modality_list('fmri');
 
 idx = 0;
-file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','cbv','dtifc','fmri','fmrib','alf','dtimx','dtimn');
+file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','mtt','cbv','dtifc','fmri','fmrib','alf');
 number_list='';
 for i = 1: size(file_list, 1)
 	nam = deblank(file_list(i,:));

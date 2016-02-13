@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 11 Dec 2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 2/2/2015 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
@@ -35,7 +35,7 @@ end
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
-[designMat, designUsesNiiImages] = nii_read_design (xlsname);
+[designMat, designUsesNiiImages] = readDesign (xlsname);
 [~, xlsname, ~] = fileparts(xlsname);
 if ~exist('regressBehav','var')
    regressBehav = false; 
@@ -74,34 +74,22 @@ doVoxReduce = false;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
-    cfg_filename = 'niistat_cfg.mat';
     prompt = {'Number of permutations (-1 for FDR, 0 for Bonferroni, large number for permute (3000), very small number for FreedmanLane(-3000):','Corrected P theshold:',...
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],... 
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]',...
-        'Statistics name [optional]'
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
     num_lines = 1;
-    def = [];
-    if exist(cfg_filename,'file')
-        s = load(cfg_filename);
-        if isfield(s,'answer')
-            def = s.answer;
-        end;
-    end;
-    if numel(def) ~= 7
-      def = {'0','0.05','2','3','1','',''};  
-    end
     if designUsesNiiImages
-        def{4} = 'UNUSED (design file specifies voxelwise images)';,
-        def{5} = 'UNUSED (design file specifies voxelwise images)';
-    
+        def = {'0','0.05','1','UNUSED (design file specifies voxelwise images)','UNUSED (design file specifies voxelwise images)',''};
+    else
+        def = {'0','0.05','2','0','1',''};
+        %def = {'4000','0.05','2','4','6',''};
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
     if isempty(answer), return; end;
-    save(cfg_filename,'answer') % save user preferences
     numPermute = str2double(answer{1});
     pThresh = str2double(answer{2});
     minOverlap = str2double(answer{3});
@@ -126,10 +114,10 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     end
     if any(special == 5) %allow user to specify custom ROIs
         customROI = true;
-        %if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
-        %    roiIndices = 0;
-        %    fprintf('Custom ROIs require selecting the voxelwise modality\n');
-        %end
+        if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
+            roiIndices = 0;
+            fprintf('Custom ROIs require selecting the voxelwise modality\n');
+        end
     end
     if any(special == 6) %allow WM/CSF connections
         doTFCE = true;
@@ -143,7 +131,6 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
-    statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
     roiIndices = 0;
@@ -152,9 +139,10 @@ end
 for i = 1: length(modalityIndices) %for each modality
     modalityIndex = modalityIndices(i);
     for j = 1: length(roiIndices)
+        
         roiIndex = roiIndices(j);
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname);
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce);
     end
 end
 %end nii_stat_mat()
@@ -165,70 +153,70 @@ function nii = isNII (filename)
 nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
 %end isNII()
 
-% function [designMat, designUsesNiiImages] = readDesign (xlsname)
-% designUsesNiiImages = false;
-% [~,~,x] = fileparts(xlsname);
-% if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-%     dMat = nii_tab2mat(xlsname);
-% else
-%     dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
-% end
-% SNames = fieldnames(dMat);
-% numFields = length (SNames);
-% if numFields < 2
-%     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
-% end
-% numNII = 0; %number of NIfTI files
-% numMat = 0; %number of Mat files
-% numOK = 0;
-% %designMat = [];
-% for i=1:size(dMat,2)
-%     matname = deblank( dMat(i).(SNames{1}));
-%     isValid = false;
-%     if numel(SNames) > 1
-%         for j = 2:numel(SNames) 
-%             b = dMat(i).(SNames{j});
-%             if ~isempty(b) && isnumeric(b) && isfinite(b)
-%                 isValid = true;
-%             end
-%         end
-%     end
-%     if ~isValid
-%         fprintf('Warning: no valid behavioral data for %s\n',matname);
-%         matname = '';
-%     end
-%     if ~isempty(matname)
-%         
-%         [matname] = findMatFileSub(matname,xlsname);
-%         
-%         [~, ~, ext] = fileparts(matname);
-% 
-%         if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-%             if strcmpi('.mat',ext)
-%                 numMat = numMat + 1;
-%             elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-%                 numNII = numNII + 1;
-%             end
-%             dMat(i).(SNames{1}) = matname;
-%             numOK = numOK + 1;
-%             designMat(numOK) = dMat(i); %#ok<AGROW>
-%             
-%         end
-%     end
-% end
-% if (numNII + numMat) == 0
-%     error('Unable to find any of the images listed in the file %s\n',xlsname);
-% end
-% if (numNII > 0) && (numMat >0) %mixed file
-%     error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
-% end
-% if (numNII > 0)
-%     fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
-%     designUsesNiiImages = true;
-% end
-% %end readDesign()
+function [designMat, designUsesNiiImages] = readDesign (xlsname)
+designUsesNiiImages = false;
+[~,~,x] = fileparts(xlsname);
+if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
+    dMat = nii_tab2mat(xlsname);
+else
+    dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
+end
+SNames = fieldnames(dMat);
+numFields = length (SNames);
+if numFields < 2
+    error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
+end
+numNII = 0; %number of NIfTI files
+numMat = 0; %number of Mat files
+numOK = 0;
+%designMat = [];
+for i=1:size(dMat,2)
+    matname = deblank( dMat(i).(SNames{1}));
+    isValid = false;
+    if numel(SNames) > 1
+        for j = 2:numel(SNames) 
+            b = dMat(i).(SNames{j});
+            if ~isempty(b) && isnumeric(b) && isfinite(b)
+                isValid = true;
+            end
+        end
+    end
+    if ~isValid
+        fprintf('Warning: no valid behavioral data for %s\n',matname);
+        matname = '';
+    end
+    if ~isempty(matname)
+        
+        [matname] = findMatFileSub(matname,xlsname);
+        
+        [~, ~, ext] = fileparts(matname);
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname)
+        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+            if strcmpi('.mat',ext)
+                numMat = numMat + 1;
+            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+                numNII = numNII + 1;
+            end
+            dMat(i).(SNames{1}) = matname;
+            numOK = numOK + 1;
+            designMat(numOK) = dMat(i); %#ok<AGROW>
+            
+        end
+    end
+end
+if (numNII + numMat) == 0
+    error('Unable to find any of the images listed in the file %s\n',xlsname);
+end
+if (numNII > 0) && (numMat >0) %mixed file
+    error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
+end
+if (numNII > 0)
+    fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
+    designUsesNiiImages = true;
+end
+%end readDesign()
+
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce)
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -270,9 +258,7 @@ else
     [~,nam] = fileparts(deblank(kROIs(roiIndex,:)));
     ROIfield = [deblank(kModalities(modalityIndex,:)) '_' nam];
 end
-if ~exist('statname','var') || isempty(statname)
-    statname = [ROIfield '_' xlsname];%sprintf ('%s%s',deblank(kModalities(modalityIndex,:)),deblank(kROIs(roiIndex,:)));
-end;
+statname = [ROIfield '_' xlsname];%sprintf ('%s%s',deblank(kModalities(modalityIndex,:)),deblank(kROIs(roiIndex,:)));
 SNames = fieldnames(designMat);
 matnames = [];
 for i=1:size(designMat,2)
@@ -288,16 +274,10 @@ else
     subfield = '.mean';
 end
 subfield = [ROIfield subfield];
-%explicit voxel mapping
-requireVoxMask =  (roiIndex == 0) && exist('mask_filename','var') && ~isempty(mask_filename); %apply explicit masking image
-if (requireVoxMask) && (doTFCE == 1)
-   error('Explicit mask not (yet) compatible with TFCE'); 
-end
-
 %for large voxel datasets - first pass to find voxels that vary
 voxMask = [];
 %if false
-if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1)) %voxelwise, large study
+if (~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
     for i = 1:size(matnames,1)
@@ -308,11 +288,11 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
             error('Please use nii_nii2mat before conducting a large voxelwise statistics');
         elseif (exist (in_filename, 'file'))
             dat = load (in_filename);
+            
             if  issubfieldSub(dat,subfield)
-                hdr = dat.(ROIfield).hdr;
                 img = dat.(ROIfield).dat;
                 if doVoxReduce
-                    
+                    hdr = dat.(ROIfield).hdr;
                     [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
                 end
                 %store behavioral and relevant imaging data for ALL relevant valid individuals
@@ -332,23 +312,6 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
     end %for each individual
     voxMask(voxMask < minOverlap) = 0;
     voxMask(voxMask > 0) = 1;
-    if requireVoxMask
-        mask_hdr = spm_vol (mask_filename);
-        mask_img = spm_read_vols (mask_hdr);
-        mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
-        if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
-            fprintf('WARNING: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
-            inimg = mask_img; %reshape(mask_img,mask_hdr.dim(1:3)); %turn 1D vector into 3D
-            imgdim = hdr.dim(1:3);
-            mask_img = zeros(imgdim);
-            for i = 1:imgdim(3)
-                M = inv(spm_matrix([0 0 -i])*inv(hdr.mat)*mask_hdr.mat); %#ok<MINV>
-                mask_img(:,:,i) = spm_slice_vol(inimg, M, imgdim(1:2), 1); % 1=linear interp; 0=nearest neighbor            
-            end %for each slice
-        end %if dimensions differ
-        fprintf('Explicit voxel mask includes %d of %d voxels\n',sum(mask_img(:) > 0), numel(mask_img));
-        voxMask(mask_img == 0) = 0;
-    end
     %voxMask = voxMask(:); %make 1d
     nOK = sum(voxMask(:) > 0);
     fprintf('%d of %d voxels (%g%%) show signal in at least %d participants\n',nOK, numel(voxMask),100*nOK/numel(voxMask), minOverlap );
@@ -378,7 +341,7 @@ for i = 1:size(matnames,1)
             dat = load (in_filename);
             [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat, subfield);
             %if  issubfieldSub(dat,'lesion.dat') 
-            %	fprintf ('Volume\t%g\tfor\t%s\n',sum(dat.lesion.dat(:)), in_filename);
+            %	fprintf ('Volume %g for %s\n',sum(dat.lesion.dat(:)), in_filename);
             %end
             %if  isfield(dat,subfield) % && ~isempty (data.behav)
             if (roiIndex > 0) && (~kAnalyzeCorrelationNotMean) && ~issubfieldSub(dat,subfield)
@@ -428,7 +391,6 @@ for i = 1:size(matnames,1)
         fprintf('Unable to find file %s\n', in_filename);
     end
 end
-
 clear('dat'); %these files tend to be large, so lets explicitly free memory
 n_subj = idx;
 if n_subj < 3
@@ -505,10 +467,9 @@ if regressBehav
         end
     end
 end %if regressBehav - regress behavioral data using lesion volume
-
 roiName = '';
 if roiIndex == 0 %voxelwise lesion analysis
-    les_names = [];
+    les_names = '';
     hdr = subj_data{1}.(ROIfield).hdr;
     for i = 1:n_subj
         if (i > 1) && (numel(subj_data{i}.(ROIfield).dat(:)) ~= numel(subj_data{1}.(ROIfield).dat(:)))
@@ -529,27 +490,27 @@ if roiIndex == 0 %voxelwise lesion analysis
         les(nanIndex) = 0;
         fprintf('Warning: Not a number values in images replaced with zeros\n');
     end
+    if  exist('mask_filename','var') && ~isempty(mask_filename) %apply explicit masking image
+            mask_hdr = spm_vol (mask_filename);
+            mask_img = spm_read_vols (mask_hdr);
+            mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
+            if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
+                fprintf('Warning: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
+                inimg = mask_img; %reshape(mask_img,mask_hdr.dim(1:3)); %turn 1D vector into 3D
+                imgdim = hdr.dim(1:3);
+                mask_img = zeros(imgdim);
+                for i = 1:imgdim(3)
+                    M = inv(spm_matrix([0 0 -i])*inv(hdr.mat)*mask_hdr.mat); %#ok<MINV>
+                    mask_img(:,:,i) = spm_slice_vol(inimg, M, imgdim(1:2), 1); % 1=linear interp; 0=nearest neighbor            
+                end %for each slice
+            end %if dimensions differ
+            mask_img = mask_img(:); %create a 1D vector
+            fprintf('Including the %d voxels (of %d possible) in mask %s\n', nnz(mask_img), numel(mask_img), mask_filename);
+            for i = 1:n_subj
+                les(i, mask_img == 0) = 0;       %#ok<AGROW>
+            end  %mask each subject's data
+    end %if mask
 else %if voxelwise else region of interest analysis
-    if  exist('mask_filename','var') && ~isempty(mask_filename) 
-       error('Explicit mask only for voxelwise data');
-    end
-    %NEXT roi masking
-    roiMaskI = []; %inclusive ROI mask - e.g. if [1 2 12] then only these 3 regions analyzed...
-    les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
-    if customROI
-        answer = inputdlg(['Only include the following regions (1..', sprintf('%d',numel(les_names)),')'] ,'ROI inclusion criteria',1,{'1 2 6 8'});
-        if isempty(answer), return; end;
-        roiMaskI = str2num(answer{1});
-    else
-        global global_roiMask
-        roiMaskI = global_roiMask; %inclusion mask
-    end
-    if ~isempty(roiMaskI)
-        les_names = les_names(roiMaskI,:);
-    end
-
-
-    
     %find the appropriate ROI
     %[mpth,~,~] = fileparts( deblank (which(mfilename)));
     %roiName = fullfile(mpth,[deblank(kROIs(roiIndex,:)) '1mm.nii']);
@@ -560,7 +521,7 @@ else %if voxelwise else region of interest analysis
     end
     hdr = spm_vol(roiName);
     %provide labels for each region
-    %les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
+    les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
     %next: create labels for each region, add image values
     if kAnalyzeCorrelationNotMean %strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
         labels = les_names;
@@ -568,7 +529,7 @@ else %if voxelwise else region of interest analysis
             %http://stackoverflow.com/questions/13345280/changing-representations-upper-triangular-matrix-and-compact-vector-octave-m
             %extract upper triangle as vector
             A = subj_data{i}.(ROIfield).r;
-            A = shrink_matxCustomSub( A,  roiMaskI);
+            [labels,A] = shrink_matxCustomSub(labels,A, i);
             if GrayMatterConnectivityOnly == true
                 [les_names,A] = shrink_matxSub(labels,A);
                 %fprintf('Only analyzing gray matter regions (%d of %d)\n',size(les_names,1),size(labels,1) );
@@ -582,21 +543,12 @@ else %if voxelwise else region of interest analysis
         end
     else %not DTI n*n connectivity matrix
         for i = 1:n_subj
-            
-            if ~isempty(roiMaskI)
-                A = subj_data{i}.(ROIfield).mean;
-                les(i, :) = A(roiMaskI); %#ok<AGROW>
-            else  
-                les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
-            end
+            les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
         end
-        
     end
-
 end %if voxelwise else roi
-
-if customROI && roiIndex == 0
-    %if roiIndex ~= 0, fprintf('Custom ROIs require selecting the voxelwise modality\n'); end;
+if customROI
+    if roiIndex ~= 0, fprintf('Custom ROIs require selecting the voxelwise modality\n'); end;
     roiNames = spm_select(inf,'image','Select regions of interest');
     lesVox = les;
     les = zeros(n_subj, size(roiNames,1) );
@@ -606,8 +558,25 @@ if customROI && roiIndex == 0
     hdr = []; %no image for these regions of interest
     les_names = cellstr(les_names);
 end %if custom ROI 
-
-
+if (size(les_names,1) > 1) && (~kAnalyzeCorrelationNotMean) &&  (size(les_names,1) == numel( les(1, :)))   %for ROI analyses
+  %this next bit allow us to remove ROIs
+  % global roiMask
+  % roiMask = [1 3 4]; %only include these regions of interest
+  global roiMask
+  if ~isempty(roiMask)
+    if min(roiMask(:)) < 1 || max(roiMask(:)) > size( les(1, :),2)
+        error('global roiMask must have values in the range 1..%d', size( les(1, :),2));
+    end
+    global roiMaskDeleteItems;
+    if ~isempty(roiMaskDeleteItems) && roiMaskDeleteItems
+        rMask = roiMask; %delete items in ROI mask, [1 2 5] removes 1st, 2nd, 5th col
+    else
+        rMask = 1: size(les_names,1); rMask(roiMask)=[]; %[1 2 5] preserves 1st, 2nd 5th
+    end
+    les(:, rMask)=[]; %remove columns
+    les_names(rMask,:) = [];
+  end   
+end
 if (numPermute < -2) && (numPermute >= -500)
     fprintf('Error: Current software can not understand %d permutations (reserved for future usage).\n', numPermute);
     return;
@@ -709,16 +678,23 @@ end
 %end processMatSub()
 
 
-function  mat = shrink_matxCustomSub( mat, roiMaskI)
+function [labels, mat] = shrink_matxCustomSub(labels, mat, shrinkLabels)
 %removes columns/rows as specified by the global "roiMask"
 %this next bit allow us to remove ROIs
 % global roiMask
 % roiMask = [1 3 4]; %only include these regions of interest
-if isempty(roiMaskI), return; end;
-%indx = roiMask; %[1 2 5] preserves 1st, 2nd 5th
-smallmat = mat(roiMaskI,:); %remove rows
-mat = smallmat(:,roiMaskI); %remove columns
-%if shrinkLabels == 1, labels = labels(roiMaskI,:); end;
+global roiMask
+if isempty(roiMask), return; end;
+global roiMaskDeleteItems;
+if ~isempty(roiMaskDeleteItems) && roiMaskDeleteItems
+        %index = roiMask; %delete items in ROI mask, [1 2 5] removes 1st, 2nd, 5th col
+else
+        indx = roiMask; %[1 2 5] preserves 1st, 2nd 5th
+end
+smallmat = mat(indx,:); %remove rows
+mat = smallmat(:,indx); %remove columns
+size(mat)
+if shrinkLabels == 1, labels = labels(indx,:); end;
 %end shrink_matxCustomSub()
 
 function [smalllabels, smallmat] = shrink_matxSub(labels, mat)
@@ -741,48 +717,49 @@ smallmat = smallmat(:,index);
 smalllabels = labels(index,:);
 %end shrink_matxSub()
 
-% function [fname] = findMatFileSub(fname, xlsname)
-% %looks for a .mat file that has the root 'fname', which might be in same
-% %folder as Excel file xlsname
-% fnameIn = fname;
-% [pth,nam,ext] = fileparts(fname);
-% if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MAT file
-%     ext = '.mat';
-%     %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
-% else
-%     if exist(fname, 'file') == 2, return; end;
-% end
-% fname = fullfile(pth,[nam '.mat']);
-% if exist(fname, 'file'), return; end;
-% %next - check folder of Excel file
-% [xpth,~,~] = fileparts(xlsname);   
-% fname = fullfile(xpth,[nam ext]);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(xpth,[nam '.mat']);
-% if exist(fname, 'file'), return; end;
-% %next check for nii file:
-% fname = findNiiFileSub(fnameIn, xlsname);
-% if exist(fname, 'file'), return; end;
-% fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
-% fname = '';
-% %end findMatFileSub()
+function [fname] = findMatFileSub(fname, xlsname)
+%looks for a .mat file that has the root 'fname', which might be in same
+%folder as Excel file xlsname
+fnameIn = fname;
+[pth,nam,ext] = fileparts(fname);
 
-% function [fname] = findNiiFileSub(fname, dir)
-% [pth,nam,~] = fileparts(fname);
-% fname = fullfile(pth,[nam '.nii']);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(pth,[nam '.hdr']);
-% if exist(fname, 'file'), return; end;
-% if exist(dir,'file') == 7
-%     pth = dir;
-% else
-%     [pth,~,~] = fileparts(dir);
-% end
-% fname = fullfile(pth,[nam '.nii']);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(pth,[nam '.hdr']);
-% if exist(fname, 'file'), return; end;
-% %findNiiFileSub
+if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MAT file
+    ext = '.mat';
+    %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
+else
+    if exist(fname, 'file') == 2, return; end;
+end
+fname = fullfile(pth,[nam '.mat']);
+if exist(fname, 'file'), return; end;
+%next - check folder of Excel file
+[xpth,~,~] = fileparts(xlsname);   
+fname = fullfile(xpth,[nam ext]);
+if exist(fname, 'file'), return; end;
+fname = fullfile(xpth,[nam '.mat']);
+if exist(fname, 'file'), return; end;
+%next check for nii file:
+fname = findNiiFileSub(fnameIn, xlsname);
+if exist(fname, 'file'), return; end;
+fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
+fname = '';
+%end findMatFileSub()
+
+function [fname] = findNiiFileSub(fname, dir)
+[pth,nam,~] = fileparts(fname);
+fname = fullfile(pth,[nam '.nii']);
+if exist(fname, 'file'), return; end;
+fname = fullfile(pth,[nam '.hdr']);
+if exist(fname, 'file'), return; end;
+if exist(dir,'file') == 7
+    pth = dir;
+else
+    [pth,~,~] = fileparts(dir);
+end
+fname = fullfile(pth,[nam '.nii']);
+if exist(fname, 'file'), return; end;
+fname = fullfile(pth,[nam '.hdr']);
+if exist(fname, 'file'), return; end;
+%findNiiFileSub
 
 function b = isBinomialSub(i)
 %returns true if vector is binomial (less than three distinct values)
@@ -827,7 +804,7 @@ cbfStd = nan;
 if isempty(dat), return; end;
 if isempty(strfind(subfield,'cbf')), return; end;
 if ~issubfieldSub(dat,'cbf'), return; end;
-if issubfield(dat.cbf,'c1R') && issubfield(dat.cbf,'c2R')
+if issubfieldSub(dat.cbf,'c1R') && issubfieldSub(dat.cbf,'c2R')
     cbfMean = (dat.cbf.c1R+dat.cbf.c2R)/2;
     cbfStd = 0.66;
     fprintf('Normalizing intensity using precomputed right hemisphere CBF estimates %g\n', cbfMean);
