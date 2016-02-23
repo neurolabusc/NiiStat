@@ -26,7 +26,7 @@ if ~exist('modalityIndex','var') %get preferences
 end
 if ischar(modalityIndex)
     [~, ~, idx] = nii_modality_list(modalityIndex);
-    if idx < 1, error('Invalid roi name %s', modalityIndex); end;
+    if idx < 1, error('Invalid modality name %s', modalityIndex); end;
     modalityIndex = idx;
 end
 %end modalityIndexSub()
