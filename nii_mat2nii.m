@@ -15,17 +15,30 @@ if length(matnames) < 1, return; end;
 for f = 1 : size(matnames,1)
     matname = deblank(matnames(f,:));
     if ~exist(matname, 'file'), error('Unable to find %s', matname); end;
-    [kModalities, ~] = nii_modality_list();
     mat = load(matname);
-    for m = 1 : size(kModalities,1)
-        modality = deblank(kModalities(m,:));
-        if isfield(mat, modality) && isfield(mat.(modality),'hdr')
-            hdr = mat.(modality).hdr;
-            img = mat.(modality).dat;
+    
+    %auto-detect modalities
+    fld=fieldnames(mat);
+    for i = 1: numel(fld)
+        if isfield( mat.(fld{i}),'dat') && isfield( mat.(fld{i}),'hdr')
+            hdr = mat.(fld{i}).hdr;
+            img = mat.(fld{i}).dat;
             [pth,nam] = fileparts(matname);
-            %hdr.fname = [nam '_' modality '.nii']; %save to CWD
-            hdr.fname = fullfile(pth, [nam '_' modality '.nii']);
+            hdr.fname = fullfile(pth, [nam '_' deblank(fld{i}) '.nii']);
             spm_write_vol(hdr,img);
-        end;
+        end
     end
+%use custom set of modalities    
+%     [kModalities, ~] = nii_modality_list();
+%     for m = 1 : size(kModalities,1)
+%         modality = deblank(kModalities(m,:));
+%         if isfield(mat, modality) && isfield(mat.(modality),'hdr')
+%             hdr = mat.(modality).hdr;
+%             img = mat.(modality).dat;
+%             [pth,nam] = fileparts(matname);
+%             %hdr.fname = [nam '_' modality '.nii']; %save to CWD
+%             hdr.fname = fullfile(pth, [nam '_' modality '.nii']);
+%             spm_write_vol(hdr,img);
+%         end;
+%     end
 end
