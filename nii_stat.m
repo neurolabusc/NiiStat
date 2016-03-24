@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 2/2/2015 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 3/3/2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')  
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file'); 
    if isequal(file,0), return; end;
