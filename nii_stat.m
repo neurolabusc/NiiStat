@@ -22,7 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
-fprintf('Version 24 Mar 2016 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 6 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
    if isequal(file,0), return; end;
@@ -644,6 +644,28 @@ if doTFCE
 else
     hdrTFCE = [];
 end
+%note this next conditional removes regions with little variability. 
+%  n.b. this same step is built into nii_stat_core, but we will do it here
+%  so reportROIvalues will match what will be computed
+if (minOverlap > 1) && (numel(les_names) > 0)
+    nOK = 0;
+    for j = 1:numel(les_names)
+        if (sum ((les(:, j)) ~= 0) > minOverlap)
+            nOK = nOK + 1;
+            les(:, nOK) = les(:, j);
+            les_names{nOK} = les_names{j};
+        end  
+    end %for j
+    if nOK < 1 
+       error('No regions non-zero in at least %d individuals', minOverlap); 
+    end
+    if nOK < numel(les_names)
+        fprintf('%d of %d regions non-zero in at least %d individuals\n', nOK, numel(les_names), minOverlap);
+        les_names = les_names(1:nOK);
+        les = les(:,1:nOK);
+    end
+end %if minOverlap > 1 and not voxelwise
+
 if (reportROIvalues) && (numel(les_names) < 1)
     fprintf('Unable to create a ROI report [voxelwise analyses]\n');
 elseif (reportROIvalues) && (kAnalyzeCorrelationNotMean)
