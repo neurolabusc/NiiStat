@@ -22,6 +22,7 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
 % nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
+checkForUpdate(fileparts(mfilename('fullpath')));
 fprintf('Version 6 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
@@ -959,3 +960,35 @@ nMax = sum(x(:)==max(x(:)));
 %isBin = ((nMax + nMin) == numel(x));
 isBin = ((nMax + nMin + sum(isnan(x(:)))) == numel(x));
 %end isBinSub
+
+function checkForUpdate(repoPath)
+prevPath = pwd;
+cd(repoPath);
+if exist('.git','dir')
+    system('git fetch origin','-echo');
+    [~, r] = system('git status','-echo');
+    if strfind(r,'behind')
+        if askToUpdate
+            [~, r] = system('git pull','-echo');
+            showRestartMsg
+        end
+    end
+end
+cd(prevPath);
+
+function showRestartMsg
+uiwait(msgbox('The program must be restarted for changes to take effect. Click "OK" to quit the program. You will need to restart it just as you normally would','Restart Program'))
+exit;
+
+function a = askToUpdate
+% Construct a questdlg
+choice = questdlg(sprintf('An update for %s is available. Would you like to update?',mfilename), ...
+	'Auto update', ...
+	'Yes','No','Yes');
+% Handle response
+switch choice
+    case 'Yes'
+        a = true;
+    case 'No'
+        a = false;
+end
