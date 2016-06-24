@@ -1,4 +1,4 @@
-function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, doTFCE, doSVM)
+function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, doTFCE, doSVM)
 %Analyze MAT files
 % xlsname         : name of excel file where first column is mat name for
 %                   participant and subsequent columns are behavioral values
@@ -15,14 +15,10 @@ function nii_stat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minO
 % deSkew        : Report and attempt to correct skewed behavioral data
 % doTFCE        : Apply threshold-free cluster enhancement (voxelwise only)
 %Examples
-% nii_stat_xls
-% nii_stat_xls('LIMEpf.xlsx',1,1,0,0.05,1)
-% nii_stat_xls('LIMEab1.xlsx',0,1,0,0.05,1)
-% nii_stat_xls('LIMEab.xlsx',[1 2],[1 2 3 4 5 6 7],2000,0.05,1)
-% nii_stat_xls('LIMEab3.xlsx',[1],[1],-1000,0.05,1)
-% nii_stat_xls('LIMEab1.xlsx',[2],[7],1000,0.05,1)
-% nii_stat_xls('LIMEab1.xlsx',[0],[1],0,0.05,1)
+% NiiStat %use graphical interface
+% NiiStat('LIMEpf.xlsx',1,1,0,0.05,1)
 
+checkForUpdate(fileparts(mfilename('fullpath')));
 fprintf('Version 6 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
@@ -964,8 +960,12 @@ isBin = ((nMax + nMin + sum(isnan(x(:)))) == numel(x));
 function checkForUpdate(repoPath)
 prevPath = pwd;
 cd(repoPath);
-if exist('.git','dir')
-    system('git fetch origin','-echo');
+if exist('.git','dir') %only check for updates if program was installed with "git clone"
+    [s, r] = system('git fetch origin','-echo');
+    if strfind(r,'fatal')
+        warning('Unabe to check for updates. Network issue?');
+        return;
+    end
     [~, r] = system('git status','-echo');
     if strfind(r,'behind')
         if askToUpdate
@@ -973,14 +973,16 @@ if exist('.git','dir')
             showRestartMsg
         end
     end
+else %do nothing for now
+    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"',mfilename));
 end
 cd(prevPath);
-end
+%end checkForUpdate()
 
 function showRestartMsg
 uiwait(msgbox('The program must be restarted for changes to take effect. Click "OK" to quit the program. You will need to restart it just as you normally would','Restart Program'))
 exit;
-end
+%end showRestartMsg()
 
 function a = askToUpdate
 % Construct a questdlg
@@ -994,3 +996,4 @@ switch choice
     case 'No'
         a = false;
 end
+%end askToUpdate()

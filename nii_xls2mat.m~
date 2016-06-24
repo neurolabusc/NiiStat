@@ -27,7 +27,7 @@ fprintf(' You will get an error if your Excel file does not have a worksheet nam
 try
     [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
 catch
-    fprintf('Unable to read worksheet "%s" from "%"\n',worksheetname, xlsname);
+    fprintf('Unable to read worksheet "%s" in the fil');
     return;
 end;
 %[~, txt, raw] = xlsread (xlsname, 'NiiStat','','basic');

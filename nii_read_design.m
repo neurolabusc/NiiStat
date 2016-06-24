@@ -4,7 +4,13 @@ designUsesNiiImages = false;
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     dMat = nii_tab2mat(xlsname);
 else
-    dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
+    dMat = nii_xls2mat(xlsname , 'NiiStat','', true);
+    if isempty(dMat)
+        dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
+    end
+end
+if isempty(dMat)
+   error('Unable to load file %s\n', xlsname);
 end
 SNames = fieldnames(dMat);
 numFields = length (SNames);
