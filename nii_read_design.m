@@ -1,10 +1,17 @@
-function [designMat, designUsesNiiImages] = nii_read_design (xlsname)
+function [designMat, designUsesNiiImages] = nii_read_design (xlsname, worksheetname)
 designUsesNiiImages = false;
+if exist(xlsname,'file') ~= 2
+    fprintf('%s Unable to find file named "%s"\n',mfilename, xlsname);
+    return
+end
+if ~exist('worksheetname','var')
+    worksheetname = 'NiiStat';
+end
 [~,~,x] = fileparts(xlsname);
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     dMat = nii_tab2mat(xlsname);
 else
-    dMat = nii_xls2mat(xlsname , 'NiiStat','', true);
+    dMat = nii_xls2mat(xlsname , worksheetname,'', true);
     if isempty(dMat)
         dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
     end
