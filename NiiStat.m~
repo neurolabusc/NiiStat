@@ -1009,19 +1009,6 @@ switch choice
 end
 %end askToUpdate()
 
-function a = askToUpdateMatFiles
-% Construct a questdlg
-choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
-	'Auto update', ...
-	'Yes','No','Yes');
-% Handle response
-switch choice
-    case 'Yes'
-        a = true;
-    case 'No'
-        a = false;
-end
-%end askToUpdateMatFiles()
 
 function checkForMostRecentMatFiles(repoPath)
 repo = 'NiiMatFiles';
