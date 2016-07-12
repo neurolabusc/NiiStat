@@ -20,7 +20,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 import java.lang.*;
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
-%checkForMostRecentMatFiles(repopath)
+checkForMostRecentMatFiles(repopath)
 fprintf('Version 30 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
@@ -1027,7 +1027,6 @@ end
 function checkForMostRecentMatFiles(repoPath)
 repo = 'NiiMatFiles';
 prevPath= pwd;
-%websave('matfiles','http://people.cas.sc.edu/rorden/matfiles/current.zip')
 if exist(repoPath,'dir')
     cd(repoPath);
 end
@@ -1036,8 +1035,6 @@ if askToUpdateMatFiles
     pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
     delete(dlh);
     showUnzipMsg(pthToFile);
-    close all
 end
-
 cd(prevPath);
 
