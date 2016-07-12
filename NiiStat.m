@@ -988,11 +988,12 @@ exit;
 %end showRestartMsg()
 
 function showUnzipMsg(pth)
+fprintf('Go to file: %s\n\nUnzip and enter password',pth);
 uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
 %end showRestartMsg()
 
-function showDownloading
-msgbox('Downloading matfiles...','Downloading');
+function h = showDownloading
+h = msgbox('Downloading matfiles...','Downloading');
 %end showRestartMsg()
 
 function a = askToUpdate
@@ -1031,8 +1032,9 @@ if exist(repoPath,'dir')
     cd(repoPath);
 end
 if askToUpdateMatFiles
-    showDownloading
+    dlh = showDownloading;
     pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
+    delete(dlh);
     showUnzipMsg(pthToFile);
     close all
 end
