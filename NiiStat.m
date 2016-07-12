@@ -20,7 +20,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 import java.lang.*;
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
-checkForMostRecentMatFiles(repopath)
+%checkForMostRecentMatFiles(repopath)
 fprintf('Version 30 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
