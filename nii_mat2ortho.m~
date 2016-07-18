@@ -1,4 +1,4 @@
-function nii_mat2ortho(file, psnm)
+function nii_mat2ortho(fnm, psnm)
 %Display all images stored in a NiiStat matfile
 % fnm : name of matfile to view
 % psnm : (optional) append data to post-script file
@@ -15,18 +15,13 @@ function nii_mat2ortho(file, psnm)
 
 if ~exist('fnm', 'var')
    [A,Apth] = uigetfile({'*.mat;';'*.*'},'MultiSelect', 'on','Select NiiStat-format Mat file');
-else
-    [A,Apth] = fileparts(file);
-end
-if ~exist('psnm', 'var') || isempty(psnm)
-    psnm = fullfile(Apth,[mfilename date '.ps']);
-end
+end;
 if ~iscell(A)
     A = {A};
 end
 nfiles = numel(A);
 for n = 1:nfiles
-    fnm = fullfile(Apth, A{n});
+    fnm = [Apth, A];
     m = load(fnm);
     %count number of images
     f=fieldnames(m);
@@ -59,7 +54,6 @@ for n = 1:nfiles
     end
     if ~exist('psnm', 'var') || isempty(psnm), return; end;
     print('-dpsc', '-append', psnm);
-    clear m;
 end
 %end nii_mat2ortho
 
