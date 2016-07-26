@@ -16,9 +16,11 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % doTFCE        : Apply threshold-free cluster enhancement (voxelwise only)
 %Examples
 % NiiStat %use graphical interface
-% NiiStat('LIMEpf.xlsx',1,1,0,0.05,1)
-
+% NiiStat('LIME.xlsx',1,1,0,0.05,1)
+import java.lang.*;
+repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
+%checkForMostRecentMatFiles(repopath)
 fprintf('Version 30 June 2016 of %s %s %s\n', mfilename, computer, version);
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
@@ -985,6 +987,15 @@ uiwait(msgbox('The program must be restarted for changes to take effect. Click "
 exit;
 %end showRestartMsg()
 
+function showUnzipMsg(pth)
+fprintf('Go to file: %s\n\nUnzip and enter password',pth);
+uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
+%end showRestartMsg()
+
+function h = showDownloading
+h = msgbox('Downloading matfiles...','Downloading');
+%end showRestartMsg()
+
 function a = askToUpdate
 % Construct a questdlg
 choice = questdlg(sprintf('An update for %s is available. Would you like to update?',mfilename), ...
@@ -998,3 +1009,32 @@ switch choice
         a = false;
 end
 %end askToUpdate()
+
+function a = askToUpdateMatFiles
+% Construct a questdlg
+choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
+	'Auto update', ...
+	'Yes','No','Yes');
+% Handle response
+switch choice
+    case 'Yes'
+        a = true;
+    case 'No'
+        a = false;
+end
+%end askToUpdateMatFiles()
+
+function checkForMostRecentMatFiles(repoPath)
+repo = 'NiiMatFiles';
+prevPath= pwd;
+if exist(repoPath,'dir')
+    cd(repoPath);
+end
+if askToUpdateMatFiles
+    dlh = showDownloading;
+    pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
+    delete(dlh);
+    showUnzipMsg(pthToFile);
+end
+cd(prevPath);
+
