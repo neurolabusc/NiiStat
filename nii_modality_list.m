@@ -1,12 +1,12 @@
-function [file_list, number_list, idx] = nii_modality_list(name) 
+function [file_list, number_list, idx] = nii_modality_list(name)
 %Reports names of modalities available for analysis
 %
-%Examples 
+%Examples
 % [file_list, number_list] = nii_modality_list;
 % [file_list, number_list, idx] = nii_modality_list('fmri');
 
 idx = 0;
-file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','mtt','cbv','dtifc','fmri','fmrib','alf','mk');
+file_list = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md','ttp','mtt','cbv','dtifc','fmri','fmrib','alf','mk','palf');
 number_list='';
 for i = 1: size(file_list, 1)
 	nam = deblank(file_list(i,:));

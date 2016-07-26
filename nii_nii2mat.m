@@ -11,7 +11,6 @@ function nii_nii2mat (niinames, modalityIndex, disknames, roi)
 
 if ~exist('niinames','var') %no files specified
  niinames = spm_select(inf,'^.*\.(gz|voi|img|nii)$','Select images to convert to mat');
- %niinames = spm_select(inf,'image','Select images to convert to mat');
 end;
 if length(niinames) < 1, return; end;
 [kModalities, kModalityNumbers] = nii_modality_list();
