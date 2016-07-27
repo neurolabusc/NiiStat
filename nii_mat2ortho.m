@@ -17,7 +17,9 @@ if ~exist('fnm', 'var')
    [fnm,pth] = uigetfile({'*.mat;';'*.*'},'Select NiiStat-format Mat file');
    fnm = [pth, fnm];
 end;
-pth = fileparts(which(fnm));
+if ~exist('fnm', 'var'), fprintf('%s unable to find %s\n', mfilename, fnm); return; end;
+pth = fileparts(fnm);
+if isempty(pth), pth = fileparts(which(fnm)); end;
 [~, pth1] = fileparts(pth); %get parent folder name, not full path
 if isempty(pth1), pth1 = fnm; end;
 m = load(fnm);
