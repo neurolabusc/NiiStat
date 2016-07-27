@@ -25,7 +25,8 @@ if isempty(pth1), pth1 = fnm; end;
 m = load(fnm);
 %count number of images
 f=fieldnames(m);
-f=sort(f);
+[~, i] = sort(upper(f));
+f=f(i); %sort, retaining case in case insensitive order
 nImgs = 0;
 for i = 1: numel(f)
     if isfield( m.(f{i}),'dat') && isfield( m.(f{i}),'hdr')
