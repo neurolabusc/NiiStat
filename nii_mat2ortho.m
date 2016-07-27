@@ -27,6 +27,7 @@ m = load(fnm);
 f=fieldnames(m);
 [~, i] = sort(upper(f));
 f=f(i); %sort, retaining case in case insensitive order
+%f = {'fmrib'};
 nImgs = 0;
 for i = 1: numel(f)
     if isfield( m.(f{i}),'dat') && isfield( m.(f{i}),'hdr')
@@ -49,6 +50,7 @@ h = findobj('type','figure','name','mat2ortho'); %re-use if available
 if isempty(h), h = figure('Name','mat2ortho','NumberTitle','off'); end; %make sure we do not use SPM graphics
 figure(h); %make current
 clf;
+
 for i = 1: numel(f)
     if isfield( m.(f{i}),'dat') %&& sfield( m.(f{i}),'hdr')
         nImg = nImg + 1;
@@ -64,17 +66,25 @@ function plotOrthoSub(hdr, img, XYZmm, Slot, NumSlots, Caption)
 xhair = mm2voxSub(hdr, XYZmm);
 set(gcf,'color','w');
 %img = img - min(img(:)); %set minimum to zero
-img(img < 0) = 0;
-thresh = max(img(:));
+%img(img < 0) = 0;
+threshLo = min(img(:));
+threshHi = mean(img(:));
 if  numel(img) > 1000 
-    imgS = sort(img(:));
-    pct = round(numel(imgS) * 0.995);
-    pct = imgS(pct);
-    if pct > 0
-       thresh = pct; 
-    end
+    imgS = sort( img(isfinite(img(:))));
+    imgS = imgS(imgS ~= 0);
+    pct = round(numel(imgS) * 0.98); %brightest 2%
+    threshHi = imgS(pct);
+    pct = round(numel(imgS) * 0.02); %darkest 2%
+    threshLo = imgS(pct);
 end
-%img(img > thresh) = thresh;
+if threshLo == threshHi %e.g. binary image map
+    threshLo = min(img(:));
+    threshHi = max(img(:));   
+end
+img(~isfinite(img)) = 0;
+img = img - threshLo; %translate so darkest voxel is 0
+thresh = threshHi - threshLo; 
+img(img > thresh) = thresh;
 img = 63 * (img / thresh); %matlab color scheme have 64 indices "size(bone)"
 sz = size(img);
 colormap(gray); %colormap(bone)
