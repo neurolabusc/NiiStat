@@ -41,7 +41,6 @@ if isfield(m,'lesion') && isfield(m.lesion,'dat')
 end
 %create a new figure
 [~,fnm] = fileparts(fnm); % /home/cr/m2020.mat -> 'm2020'
-clf;
 nImg = 0;
 h = findobj('type','figure','name','mat2ortho'); %re-use if available
 if isempty(h), h = figure('Name','mat2ortho','NumberTitle','off'); end; %make sure we do not use SPM graphics
