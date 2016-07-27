@@ -13,15 +13,23 @@ function nii_mat2ortho(fnm, psnm)
 % end
 %Chris Rorden, 3/2016
 
-if ~exist('fnm', 'var')
+if exist('fnm', 'var')
+   [Apth, A, ext] = fileparts(fnm);
+   A = {[A,ext]};
+else
    [A,Apth] = uigetfile({'*.mat;';'*.*'},'MultiSelect', 'on','Select NiiStat-format Mat file');
-end;
+else
+    [A,Apth] = fileparts(file);
+end
+if ~exist('psnm', 'var') || isempty(psnm)
+    psnm = fullfile(Apth,[mfilename date '.ps']);
+end
 if ~iscell(A)
     A = {A};
 end
 nfiles = numel(A);
 for n = 1:nfiles
-    fnm = [Apth, A];
+    fnm = fullfile(Apth, A{n});
     m = load(fnm);
     %count number of images
     f=fieldnames(m);
@@ -54,6 +62,7 @@ for n = 1:nfiles
     end
     if ~exist('psnm', 'var') || isempty(psnm), return; end;
     print('-dpsc', '-append', psnm);
+    clear m;
 end
 %end nii_mat2ortho
 
