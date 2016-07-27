@@ -1,4 +1,4 @@
-function nii_mat2ortho(file, psnm)
+function nii_mat2ortho(fnm, psnm)
 %Display all images stored in a NiiStat matfile
 % fnm : name of matfile to view
 % psnm : (optional) append data to post-script file
@@ -14,61 +14,49 @@ function nii_mat2ortho(file, psnm)
 %Chris Rorden, 3/2016
 
 if ~exist('fnm', 'var')
-   [A,Apth] = uigetfile({'*.mat;';'*.*'},'MultiSelect', 'on','Select NiiStat-format Mat file');
-else
-    [A,Apth] = fileparts(file);
-end
-if ~exist('psnm', 'var') || isempty(psnm)
-    psnm = fullfile(Apth,[mfilename date '.ps']);
-end
-if ~iscell(A)
-    A = {A};
-end
-nfiles = numel(A);
-for n = 1:nfiles
-    fnm = fullfile(Apth, A{n});
-    m = load(fnm);
-    %count number of images
-    f=fieldnames(m);
-    f=sort(f);
-    nImgs = 0;
-    for i = 1: numel(f)
-        if isfield( m.(f{i}),'dat') && isfield( m.(f{i}),'hdr')
-            nImgs = nImgs + 1;
-        end
+   [fnm,pth] = uigetfile({'*.mat;';'*.*'},'Select NiiStat-format Mat file');
+   fnm = [pth, fnm];
+end;
+pth = fileparts(which(fnm));
+[~, pth1] = fileparts(pth); %get parent folder name, not full path
+if isempty(pth1), pth1 = fnm; end;
+m = load(fnm);
+%count number of images
+f=fieldnames(m);
+f=sort(f);
+nImgs = 0;
+for i = 1: numel(f)
+    if isfield( m.(f{i}),'dat') && isfield( m.(f{i}),'hdr')
+        nImgs = nImgs + 1;
     end
-    if nImgs < 1
-        fprintf('No images found in %s\n', fnm);
-        return;
-    end
-    %set crosshairs lesion to center of mass
-    XYZmm = [0;0;0];
-    if isfield(m,'lesion') && isfield(m.lesion,'dat')
-        XYZmm = getCenterOfIntensitySub(m.lesion.hdr, m.lesion.dat);
-    end
-    %create a new figure
-    [~,fnm] = fileparts(fnm); % /home/cr/m2020.mat -> 'm2020'
-    clf;
-    nImg = 0;
-    for i = 1: numel(f)
-        if isfield( m.(f{i}),'dat') %&& sfield( m.(f{i}),'hdr')
-            nImg = nImg + 1;
-            str = sprintf('%s\n%s', f{i}, fnm);
-            plotOrthoSub(m.(f{i}).hdr, m.(f{i}).dat, XYZmm, nImg, nImgs, str);
-        end
-    end
-    if ~exist('psnm', 'var') || isempty(psnm), return; end;
-    print('-dpsc', '-append', psnm);
-    clear m;
 end
+if nImgs < 1
+   fprintf('No images found in %s\n', fnm);
+   return;
+end
+%set crosshairs lesion to center of mass 
+XYZmm = [0;0;0];
+if isfield(m,'lesion') && isfield(m.lesion,'dat')
+    XYZmm = getCenterOfIntensitySub(m.lesion.hdr, m.lesion.dat);
+end
+%create a new figure
+[~,fnm] = fileparts(fnm); % /home/cr/m2020.mat -> 'm2020'
+clf;
+nImg = 0;
+h = findobj('type','figure','name','mat2ortho'); %re-use if available
+if isempty(h), h = figure('Name','mat2ortho','NumberTitle','off'); end; %make sure we do not use SPM graphics
+figure(h); %make current
+clf;
+for i = 1: numel(f)
+    if isfield( m.(f{i}),'dat') %&& sfield( m.(f{i}),'hdr')
+        nImg = nImg + 1;
+        str = sprintf('%s\n%s', f{i}, pth1);
+        plotOrthoSub(m.(f{i}).hdr, m.(f{i}).dat, XYZmm, nImg, nImgs, str);
+    end
+end
+if ~exist('psnm', 'var') || isempty(psnm), return; end;
+print('-dpsc', '-append', psnm);
 %end nii_mat2ortho
-
-
-
-
-
-
-
 
 function plotOrthoSub(hdr, img, XYZmm, Slot, NumSlots, Caption)
 xhair = mm2voxSub(hdr, XYZmm);
@@ -84,7 +72,6 @@ if  numel(img) > 1000
        thresh = pct; 
     end
 end
-
 %img(img > thresh) = thresh;
 img = 63 * (img / thresh); %matlab color scheme have 64 indices "size(bone)"
 sz = size(img);
