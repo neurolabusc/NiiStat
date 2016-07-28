@@ -16,10 +16,10 @@ file_list = char(file_list); %convert to char array
 if nargin < 1, return; end;
 len = length(name);
 for i = 1: size(file_list,1)
-   nam = char(deblank(file_list(i,:)));
-   if length(nam) >= len
-    nam = nam((end-len+1):end);
-    if strcmpi(nam, name), idx = i; end;
-   end
+    nam = char(deblank(file_list(i,:)));
+    if length(nam) >= len
+        %nam = nam((end-len+1):end);
+        if strcmpi(nam, name), idx = i; end;
+    end
 end
 %end nii_listtemplates()
