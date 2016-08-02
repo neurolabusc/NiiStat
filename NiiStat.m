@@ -973,6 +973,7 @@ if exist('.git','dir') %only check for updates if program was installed with "gi
     [s, r] = system('git fetch origin','-echo');
     if strfind(r,'fatal')
         warning('Unabe to check for updates. Network issue?');
+        cd(prevPath); %CR 8/2016
         return;
     end
     [~, r] = system('git status','-echo');

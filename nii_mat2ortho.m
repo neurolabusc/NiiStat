@@ -1,9 +1,10 @@
 function nii_mat2ortho(fnm, psnm)
 %Display all images stored in a NiiStat matfile
-% fnm : name of matfile to view
+% fnm : name of matfile to view, can also be folder with several matfiles
 % psnm : (optional) append data to post-script file
 %Examples
 % nii_mat2ortho %use GUI
+% nii_mat2ortho(pwd) %all in current folder
 % nii_mat2ortho('M2020.mat')
 % nii_mat2ortho('M2020.mat', 'my.ps')
 % v = dir( '*.mat');
@@ -15,13 +16,40 @@ function nii_mat2ortho(fnm, psnm)
 
 if ~exist('fnm', 'var')
    [fnm,pth] = uigetfile({'*.mat;';'*.*'},'Select NiiStat-format Mat file');
+   if isempty(fnm) || isnumeric(fnm), return; end; 
    fnm = [pth, fnm];
 end;
-if ~exist('fnm', 'var'), fprintf('%s unable to find %s\n', mfilename, fnm); return; end;
-pth = fileparts(fnm);
+if ~exist(fnm, 'file'), fprintf('%s unable to find %s\n', mfilename, fnm); return; end;
+if ~exist('psnm', 'var') psnm = []; end
+if ~isdir(fnm)
+    nii_mat2orthoSub(fnm, psnm);
+    if ~isempty(psnm), fprintf('Saving postscript file %s\n', psnm); end;
+    return;
+end %if single file
+%following is for directories
+pth = fnm;
+d = dir(fullfile(pth, '*.mat'));
+if isempty(d), fprintf('%s error: no *.mat files in %s\n', mfilename, fnm); return; end;
+if isempty(psnm)
+   [~, psnm] = fileparts(pth);
+   psnm = fullfile(pth, [psnm, '.ps']);
+end
+if exist(psnm, 'file'), delete(psnm); end;
+for i = 1: numel(d) 
+   fnm = fullfile(pth, d(i).name);
+   nii_mat2orthoSub(fnm, psnm);
+end
+fprintf('Created postscript file %s\n', psnm);
+%end nii_mat2ortho()
+
+function nii_mat2orthoSub(fnm, psnm)
+if ~exist(fnm, 'file'), fpritnf('Unable to find %s\n', fnm); return; end;
+[pth, nam] = fileparts(fnm);
 if isempty(pth), pth = fileparts(which(fnm)); end;
-[~, pth1] = fileparts(pth); %get parent folder name, not full path
-if isempty(pth1), pth1 = fnm; end;
+if numel(nam) > 8
+    [~, nam] = fileparts(pth); %get parent folder name, not full path
+end
+if isempty(nam), nam = fnm; end;
 m = load(fnm);
 %count number of images
 f=fieldnames(m);
@@ -38,6 +66,7 @@ if nImgs < 1
    fprintf('No images found in %s\n', fnm);
    return;
 end
+%fprintf('%d images found in %s\n', nImgs, fnm);
 %set crosshairs lesion to center of mass 
 XYZmm = [0;0;0];
 if isfield(m,'lesion') && isfield(m.lesion,'dat')
@@ -50,17 +79,16 @@ h = findobj('type','figure','name','mat2ortho'); %re-use if available
 if isempty(h), h = figure('Name','mat2ortho','NumberTitle','off'); end; %make sure we do not use SPM graphics
 figure(h); %make current
 clf;
-
 for i = 1: numel(f)
     if isfield( m.(f{i}),'dat') %&& sfield( m.(f{i}),'hdr')
         nImg = nImg + 1;
-        str = sprintf('%s\n%s', f{i}, pth1);
+        str = sprintf('%s\n%s', f{i}, nam);
         plotOrthoSub(m.(f{i}).hdr, m.(f{i}).dat, XYZmm, nImg, nImgs, str);
     end
 end
 if ~exist('psnm', 'var') || isempty(psnm), return; end;
 print('-dpsc', '-append', psnm);
-%end nii_mat2ortho
+%end nii_mat2orthoSub();
 
 function plotOrthoSub(hdr, img, XYZmm, Slot, NumSlots, Caption)
 xhair = mm2voxSub(hdr, XYZmm);
@@ -105,7 +133,7 @@ im((1:sz(2))+sz(1),(1:sz(3))+sz(2)) = sag;
 rows = ceil(sqrt(NumSlots)); %e.g. 2..4 items shown in 2x2 mosaic, 5..9 in 3x3
 scale = 1/rows;
 col = mod(Slot-1,rows) * scale;
-row = floor((Slot-1)/rows) * scale;
+row = floor((NumSlots - Slot)/rows) * scale; %top->bottom, for bottom->top: row = floor((Slot-1)/rows) * scale;
 plotImgSub ( flipud(im'), Caption, col, row, scale, scale);
 %plotOrthoSub
 

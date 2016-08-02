@@ -11,7 +11,9 @@ end
 if ~isdir(pth), error('Invalid folder %s', pth); end;
 %1st row: table labels
 modality = nii_modality_list;
-diary(fullfile(pth,'NiiStat_modalities.tab'));
+outtext = fullfile(pth,'NiiStat_modalities.txt');
+if exist(outtext,'file'), delete(outtext); end;
+diary(outtext);
 fprintf('ID\t');
 for i = 1: size(modality,1)
     fprintf('%s\t', deblank(modality(i,:)))
