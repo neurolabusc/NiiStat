@@ -19,20 +19,20 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 
 fprintf('Version 1 August 2016 of %s %s %s\n', mfilename, computer, version);
+ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 import java.lang.*;
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
 
+if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
+if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"'); end;
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
    if isequal(file,0), return; end;
    xlsname=[pth file];
 end
 if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to report version and quit
-if exist('spm','file') ~= 2
-    error('%s requires SPM to be installed', mfilename);
-end
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
