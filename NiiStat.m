@@ -17,11 +17,13 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 %Examples
 % NiiStat %use graphical interface
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
+
+fprintf('Version 1 August 2016 of %s %s %s\n', mfilename, computer, version);
 import java.lang.*;
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
-fprintf('Version 30 June 2016 of %s %s %s\n', mfilename, computer, version);
+
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
    if isequal(file,0), return; end;
@@ -246,6 +248,9 @@ if strcmpi('dtifc',deblank(kModalities(modalityIndex,:))) %read connectivity tri
     kAnalyzeCorrelationNotMean = true;
 end
 if strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
+    kAnalyzeCorrelationNotMean = true;
+end
+if strcmpi('rest',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
     kAnalyzeCorrelationNotMean = true;
 end
 if kAnalyzeCorrelationNotMean
