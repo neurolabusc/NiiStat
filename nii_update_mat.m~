@@ -40,7 +40,6 @@ dlg_title = ['Download images from GitHub?'];
 num_lines = [1 50];
 def = {'DEMO','',''};
 answer = inputdlg(prompt,dlg_title,num_lines,def);
-if isempty(answer), return; end;
 pth = fullfile(pth, ['NiiMat', answer{1}]);
 if isdir(pth)
     rmdir(pth,'s');
@@ -71,9 +70,9 @@ if exist('.git','dir') %only check for updates if program was installed with "gi
     end
     [~, r] = system('git status','-echo');
     if strfind(r,'behind')
-        if askToUpdateSub
+        if askToUpdate
             [~, r] = system('git pull','-echo');
-            %showRestartMsg %no need: we reload images
+            showRestartMsg
         end
     end
 else %do nothing for now
@@ -109,16 +108,3 @@ for i = 1: numel(f)
 end
 %end hasNiiStatMatFilesSub()
 
-function a = askToUpdateSub
-% Construct a questdlg
-choice = questdlg(sprintf('An update for %s is available. Would you like to update?',mfilename), ...
-	'Auto update', ...
-	'Yes','No','Yes');
-% Handle response
-switch choice
-    case 'Yes'
-        a = true;
-    case 'No'
-        a = false;
-end
-%end askToUpdate()
