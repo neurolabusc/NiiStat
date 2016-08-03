@@ -14,6 +14,7 @@ if ~isempty(dir(fullfile(pth,'*.nii')))
 end
 if ~isempty(dir(fullfile(pth,'*.mat')))
     if hasNiiStatMatFilesSub(pth)
+        checkForUpdate(pth);
         fprintf('Reading images from %s\n', pth);
         return; 
     end
@@ -121,4 +122,4 @@ switch choice
     case 'No'
         a = false;
 end
-%end askToUpdate()
+%end askToUpdateSub()
