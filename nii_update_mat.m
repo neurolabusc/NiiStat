@@ -23,20 +23,22 @@ nameFolds=subFolderSub(pth);
 if ~isempty(nameFolds)
     for i = 1:numel(nameFolds)
         pthx = fullfile(pth, nameFolds{i});
-        if ~isempty(dir(fullfile(pthx,'*.mat'))) || ~isempty(dir(fullfile(pthx,'*.mat')))
-            pth = pthx;
-            fprintf('Reading images from %s\n', pth);
-            checkForUpdate(pth)
-            return; 
+        if ~isempty(dir(fullfile(pthx,'*.mat')))
+            if hasNiiStatMatFilesSub(pthx)
+                pth = pthx;
+                fprintf('Reading images from %s\n', pth);
+                checkForUpdate(pth)
+                return; 
+            end
         end
     end
 end
-prompt = {'Repo:',...
+prompt = {'Repo (DEMO, LIME, M, JHU):',...
         'Username:',...
         'Password:'};
-dlg_title = ['Unable to find *>mat/*.nii files: get from GitHub?'];
-num_lines = 1;
-def = {'LIME','crorden6',''};
+dlg_title = ['Download images from GitHub?'];
+num_lines = [1 50];
+def = {'LIME','',''};
 answer = inputdlg(prompt,dlg_title,num_lines,def);
 pth = fullfile(pth, ['NiiMat', answer{1}]);
 if isdir(pth)
