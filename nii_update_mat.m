@@ -8,9 +8,15 @@ function pth = nii_update_mat (pth)
 
 if ~exist('pth','var'), pth = pwd; end;
 %if images exist in the path assume we are not using a repository
-if ~isempty(dir(fullfile(pth,'*.mat'))) || ~isempty(dir(fullfile(pth,'*.mat')))
+if ~isempty(dir(fullfile(pth,'*.nii')))
     fprintf('Reading images from %s\n', pth);
     return; 
+end
+if ~isempty(dir(fullfile(pth,'*.mat')))
+    if hasNiiStatMatFilesSub(pth)
+        fprintf('Reading images from %s\n', pth);
+        return; 
+    end
 end
 %otherwise, see if we can find a github repository
 nameFolds=subFolderSub(pth);
@@ -19,7 +25,6 @@ if ~isempty(nameFolds)
         pthx = fullfile(pth, nameFolds{i});
         if ~isempty(dir(fullfile(pthx,'*.mat'))) || ~isempty(dir(fullfile(pthx,'*.mat')))
             pth = pthx;
-            
             fprintf('Reading images from %s\n', pth);
             checkForUpdate(pth)
             return; 
@@ -37,7 +42,11 @@ pth = fullfile(pth, ['NiiMat', answer{1}]);
 if isdir(pth)
     rmdir(pth,'s');
 end
-repourl = ['https://',answer{2},':',answer{3},'@gitlab.com/neurolabusc/NiiMat', answer{1}, '.git'];
+usr_passwd = answer{2};
+if ~isempty(answer{3})
+    usr_passwd = [usr_passwd, ':', answer{3}];
+end
+repourl = ['https://',usr_passwd,'@gitlab.com/neurolabusc/NiiMat', answer{1}, '.git'];
 cmd = sprintf('git clone %s %s', repourl);
 [s, r] = system(cmd,'-echo');
 if strfind(r,'fatal')
@@ -65,7 +74,8 @@ if exist('.git','dir') %only check for updates if program was installed with "gi
         end
     end
 else %do nothing for now
-    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"',mfilename));
+    %warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"',mfilename));
+    warning('Reading images from a folder that is not set up for updating (perhaps delete folder and restart):',repoPath);
 end
 cd(prevPath);
 %end checkForUpdate()
@@ -76,3 +86,23 @@ isub = [d(:).isdir];
 nameFolds = {d(isub).name}';
 nameFolds(ismember(nameFolds,{'.','..'})) = [];
 %end subFolderSub()
+
+function isNiiStat = hasNiiStatMatFilesSub(pth)
+isNiiStat = false;
+if ~exist('pth','var') || isempty(pth), pth = pwd; end;
+%find all mat files
+f = dir(fullfile(pth,'*.mat'));
+%if any file has valid NiiStat modality than exit
+mod = nii_modality_list;
+for i = 1: numel(f)
+    fnm = fullfile(pth, f(i).name);
+    mat = load(fnm);
+    for m = 1 : size(mod,1)
+        if isfield(mat, mod(m,:))
+            isNiiStat = true;
+            return;
+        end
+    end
+end
+%end hasNiiStatMatFilesSub()
+
