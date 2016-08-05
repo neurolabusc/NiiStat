@@ -48,7 +48,7 @@ There are two methods to install this software:
 
 In either case, you will want to make sure that the "NiiStat" folder that you installed is in your Matlab path.
 
-##### Installation
+##### Notes
 
  - [NiiStat Wiki](https://www.nitrc.org/plugins/mwiki/index.php/niistat:MainPage)
  - [NiiStat Tutorial](https://www.nitrc.org/plugins/mwiki/index.php/niistat:TutorialPage)
