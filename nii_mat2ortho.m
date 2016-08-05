@@ -40,6 +40,15 @@ for i = 1: numel(d)
    nii_mat2orthoSub(fnm, psnm);
 end
 fprintf('Created postscript file %s\n', psnm);
+%convert ps to pdf
+[p, n] = fileparts(psnm);
+pdfnm = fullfile(p, [n, '.pdf']);
+exe = 'ps2pdf';
+if ~exist(exe, 'file')
+    exe = '/opt/local/bin/ps2pdf';
+    if ~exist(exe, 'file'), return; end;
+end
+system(sprintf('%s "%s" "%s"', exe, psnm, pdfnm));
 %end nii_mat2ortho()
 
 function nii_mat2orthoSub(fnm, psnm)
