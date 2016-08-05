@@ -47,3 +47,8 @@ There are two methods to install this software:
  - From the command line, type "git clone https://github.com/neurolabusc/NiiStat.git" to create a repository. This requires you to have the git software installed (it comes with OSX and Linux, but will have to be manually installed fore Windows-based PCs). The advantage of this method is that the software will automatically keep up to date.
 
 In either case, you will want to make sure that the "NiiStat" folder that you installed is in your Matlab path.
+
+##### Installation
+
+ - [https://www.nitrc.org/plugins/mwiki/index.php/niistat:MainPage NiiStat Wiki]
+ - [https://www.nitrc.org/plugins/mwiki/index.php/niistat:TutorialPage NiiStat Tutorial]
