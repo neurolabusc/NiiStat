@@ -7,6 +7,7 @@ function pth = nii_update_mat (pth)
 % will be prompted to link to one.
 
 if ~exist('pth','var'), pth = pwd; end;
+checkForUpdate(pth);
 %if images exist in the path assume we are not using a repository
 if ~isempty(dir(fullfile(pth,'*.nii')))
     fprintf('Reading images from %s\n', pth);
