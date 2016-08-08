@@ -5,42 +5,59 @@ function pth = nii_update_mat (pth)
 % otherwise, assume images come from a Github repository.
 % the software will look for a repository, and if one does not exist user
 % will be prompted to link to one.
+%Examples
+%  nii_update_mat; %Excel file in current directory
+%  nii_update_mat('~\dir'); %path to excel file
+%  nii_update_mat(1); %create new NiiMatM repo
+
+repos = { 'M' 'LIME' 'DEMO'};
+defaultRepo = 3; %DEMO is 3rd item of repos
 
 if ~exist('pth','var'), pth = pwd; end;
-checkForUpdate(pth);
-%if images exist in the path assume we are not using a repository
-if ~isempty(dir(fullfile(pth,'*.nii')))
-    fprintf('Reading images from %s\n', pth);
-    return; 
-end
-if ~isempty(dir(fullfile(pth,'*.mat')))
-    if hasNiiStatMatFilesSub(pth)
-        checkForUpdate(pth);
+if isnumeric(pth) %e.g. nii_update_mat(1);
+    defaultRepo = pth;
+    if (pth < 1) || (pth > numel(repos))
+        error('Repository number must be between 1..%d', numel(repos));
+    end
+    pth = uigetdir(pwd,'Select location for repository');
+    if isnumeric(pth), return; end; %user pressed cancel
+else
+    checkForUpdate(pth);
+    %if images exist in the path assume we are not using a repository
+    if ~isempty(dir(fullfile(pth,'*.nii')))
         fprintf('Reading images from %s\n', pth);
         return; 
     end
-end
-%otherwise, see if we can find a github repository
-nameFolds=subFolderSub(pth);
-if ~isempty(nameFolds)
-    for i = 1:numel(nameFolds)
-        pthx = fullfile(pth, nameFolds{i});
-        if ~isempty(dir(fullfile(pthx,'*.mat')))
-            if hasNiiStatMatFilesSub(pthx)
-                pth = pthx;
-                fprintf('Reading images from %s\n', pth);
-                checkForUpdate(pth)
-                return; 
+    if ~isempty(dir(fullfile(pth,'*.mat')))
+        if hasNiiStatMatFilesSub(pth)
+            checkForUpdate(pth);
+            fprintf('Reading images from %s\n', pth);
+            return; 
+        end
+    end
+    %otherwise, see if we can find a github repository
+    nameFolds=subFolderSub(pth);
+    if ~isempty(nameFolds)
+        for i = 1:numel(nameFolds)
+            pthx = fullfile(pth, nameFolds{i});
+            if ~isempty(dir(fullfile(pthx,'*.mat')))
+                if hasNiiStatMatFilesSub(pthx)
+                    pth = pthx;
+                    fprintf('Reading images from %s\n', pth);
+                    checkForUpdate(pth)
+                    return; 
+                end
             end
         end
     end
-end
-prompt = {'Repo (DEMO, LIME, M, JHU):',...
+end; %if pth is numeric else check folder
+repoStr = sprintf('%s;', repos{:});
+prompt = {sprintf('Repo (%s):',repoStr),...
         'Username:',...
         'Password:'};
 dlg_title = ['Download images from GitHub?'];
 num_lines = [1 50];
-def = {'DEMO','',''};
+def = {repos{defaultRepo},'',''};
 answer = inputdlg(prompt,dlg_title,num_lines,def);
 if isempty(answer), return; end;
 pth = fullfile(pth, ['NiiMat', answer{1}]);
@@ -52,11 +69,17 @@ if ~isempty(answer{3})
     usr_passwd = [usr_passwd, ':', answer{3}];
 end
 repourl = ['https://',usr_passwd,'@gitlab.com/neurolabusc/NiiMat', answer{1}, '.git'];
-cmd = sprintf('git clone %s %s', repourl);
+cmd = sprintf('%s clone %s %s', findGitSub(), repourl);
 [s, r] = system(cmd,'-echo');
 if strfind(r,'fatal')
 	warning('Unable to check for updates. Network issue?');
     return;
+end
+if ismac 
+    pthlfs = fullfile(fileparts(pth), 'lfs');
+    if isdir(pthlfs)
+        rmdir(pthlfs,'s')
+    end
 end
 if ~exist(pth,'file'), error('Unable to find %s\n',pth); pth = []; end;
 %end nii_update_mat()
@@ -65,16 +88,16 @@ function checkForUpdate(repoPath)
 prevPath = pwd;
 cd(repoPath);
 if exist('.git','dir') %only check for updates if program was installed with "git clone"
-    [s, r] = system('git fetch origin','-echo');
+    [s, r] = system([findGitSub(), ' fetch origin'],'-echo');
     if strfind(r,'fatal')
         warning('Unable to check for updates. Network issue?');
         cd(prevPath); %CR 8/2016
         return;
     end
-    [~, r] = system('git status','-echo');
+    [~, r] = system([findGitSub(), ' status'],'-echo');
     if strfind(r,'behind')
         if askToUpdateSub
-            [~, r] = system('git pull','-echo');
+            [~, r] = system([findGitSub(), ' pull'],'-echo');
             %showRestartMsg %no need: we reload images
         end
     end
@@ -124,3 +147,14 @@ switch choice
         a = false;
 end
 %end askToUpdateSub()
+
+function fnm = findGitSub()
+fnm = 'git';
+if ismac 
+    pth = fileparts(mfilename('fullpath'));
+    fnmlfs = fullfile(pth, 'gitlfs', 'git-lfs');
+    if exist(fnmlfs, 'file')
+        fnm = fnmlfs ;
+    end
+end
+%end findGitSub()
