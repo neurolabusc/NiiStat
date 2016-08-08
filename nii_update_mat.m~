@@ -60,6 +60,8 @@ num_lines = [1 50];
 def = {repos{defaultRepo},'',''};
 answer = inputdlg(prompt,dlg_title,num_lines,def);
 if isempty(answer), return; end;
+origPwd = pwd;
+cd(pth);
 pth = fullfile(pth, ['NiiMat', answer{1}]);
 if isdir(pth)
     rmdir(pth,'s');
@@ -73,16 +75,11 @@ if ~isempty(answer{2})
     usr_passwd = [usr_passwd, '@'];
 end
 repourl = ['https://',usr_passwd,'gitlab.com/neurolabusc/NiiMat', answer{1}, '.git'];
-cmd = sprintf('%s clone %s %s %s', findGitSub(), repourl, pth);
+cmd = sprintf('%s clone %s %s', findGitSub(), repourl);
 fprintf('%s\n', cmd);
 [s, r] = system(cmd,'-echo');
 if strfind(r,'fatal')
-	warning('Unable to check for updates. Network issue? Matlab blocking commands?');
-    clipboard('copy', cmd);
-    uiwait(msgbox('A command has been copied. Use CTRL + V to paste it in Terminal, then press enter. Click OK to open Terminal'));
-    system('open -a Terminal');
-    %error('Paste ');
-
+	warning('Unable to check for updates. Network issue?');
     return;
 end
 if ismac 
