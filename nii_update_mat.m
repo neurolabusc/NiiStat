@@ -98,6 +98,11 @@ function checkForUpdate(repoPath)
 prevPath = pwd;
 cd(repoPath);
 if exist('.git','dir') %only check for updates if program was installed with "git clone"
+    gitConfigCmd = 'git config --global http.sslVerify false';
+    gitConfigCmdUndo = 'git config --global http.sslVerify true';
+    fprintf('\nChanging your git configuration to allow bypassing ssl certificate verification...\n%s\n\n',gitConfigCmd);
+    fprintf('\nTo undo this in the future run the following command in terminal:\n%s\n\n',gitConfigCmdUndo);
+    system('git config --global http.sslVerify false');
     [s, r] = system([findGitSub(), ' fetch origin'],'-echo');
     if strfind(r,'fatal')
         warning('Unable to check for updates. Network issue?');
