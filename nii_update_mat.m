@@ -51,6 +51,7 @@ if ~isempty(answer{3})
 end
 repourl = ['https://',usr_passwd,'@gitlab.com/neurolabusc/NiiMat', answer{1}, '.git'];
 cmd = sprintf('git clone %s %s', repourl);
+cmd
 [s, r] = system(cmd,'-echo');
 if strfind(r,'fatal')
 	warning('Unable to check for updates. Network issue?');
