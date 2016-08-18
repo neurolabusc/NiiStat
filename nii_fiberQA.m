@@ -7,9 +7,8 @@ if exist('baseDir','var')
 end
 nii_correlSub('dtimn_jhu');
 nii_correlSub('dtimn_AICHA')
+nii_correlSub('rest_AICHA');
 %nii_modality_table_qa
-
-
 
 function nii_correlSub(fieldname)
 m = dir('*.mat');
@@ -36,17 +35,26 @@ for s = 1:numel(m)
 end %for each subject - generate population statistics
 if matOK == 0, return; end;
 %fprintf('Found %d files with field %s\n',  matOK, fieldname);
+if matOK < 2, fprintf('Not enough participants to compute "%s" QA statistics\n', fieldname); return; end; %stdev requires multiple samples
 mn = mean(mat);
 rOK = zeros(matOK,1);
 fid = fopen([fieldname '.txt'], 'w');
 for s = 1:matOK
     [r] = corrcoef (mn, mat(s,:));
-    fprintf('%s\tr=\t%g\n',  nam{s}, r(2,1) );
-    fprintf(fid, '%s\tr=\t%g\n',  nam{s}, r(2,1) );
     rOK(s) = r(2,1);
 end
 fclose(fid);
-fprintf('For %d files with %s, r min=\t%g\tmean=\t%g\tmax=\t%g\n',  matOK, fieldname, min(rOK), mean(rOK), max(rOK));
+%report individual values relative to Group
+mnG = mean(rOK);
+stdG = std(rOK);
+[~, idx] = sort(rOK); %list individuals sorts by QA
+for s = 1:matOK
+    %subj = s; %for input order
+    subj = idx(s); %for sorted order
+    z = (rOK(subj) - mnG) / stdG;
+    fprintf('%s\tr=\t%g\tz=\t%g\n',  nam{subj}, rOK(subj), z );
+end
+fprintf('For %d files with %s, r min=\t%g\tmean=\t%g\tmax=\t%g\tstdev=\t%g\n',  matOK, fieldname, min(rOK), mnG, max(rOK), stdG);
 toc
 %end fiberQA()
 
