@@ -5,17 +5,35 @@ function nii_fiberQA(baseDir)
 if exist('baseDir','var')
     cd(baseDir);
 end
-nii_correlSub('dtimn_jhu');
-nii_correlSub('dtimn_AICHA')
-nii_correlSub('rest_AICHA');
-%nii_modality_table_qa
+isRightHemisphereSpared = true; %set to false for RHD and true for LHD
+nii_correlSub('fa_jhu', isRightHemisphereSpared, true, true); %WHITE MATTER!!!
+nii_correlSub('fmri_AICHA', isRightHemisphereSpared, true);
+nii_correlSub('cbf_AICHA', isRightHemisphereSpared, true);
+nii_correlSub('md_AICHA', isRightHemisphereSpared,  true);
+nii_correlSub('mk_AICHA', isRightHemisphereSpared, true);
+nii_correlSub('palf_AICHA', isRightHemisphereSpared);
+nii_correlSub('alf_AICHA', isRightHemisphereSpared);
+nii_correlSub('i3mT1_AICHA', isRightHemisphereSpared, true);
+nii_correlSub('dtimn_jhu', isRightHemisphereSpared);
+nii_correlSub('dtimn_AICHA', isRightHemisphereSpared);
+nii_correlSub('rest_AICHA', isRightHemisphereSpared);
+%these next to are slow, comment the following line for faster speed
+nii_correlSub('RestAve_jhu',isRightHemisphereSpared, true);
+nii_correlSub('fMRIave_jhu',isRightHemisphereSpared, true);
+%end nii_modality_table_qa()
 
-function nii_correlSub(fieldname)
+function nii_correlSub(fieldname, isRightHemisphereSpared, isNorm, isWhiteMatter)
+if ~exist('isNorm','var')
+    isNorm = false; %assume use does not want to scale intensities from 0..1
+end
+if ~exist('isWhiteMatter','var')
+    isWhiteMatter = false; %assume use does not want to scale intensities from 0..1
+end
 m = dir('*.mat');
 if isempty(m), error('Unable to find mat files'); end;
 fprintf('Found %d subjects in %s\n',numel(m), pwd);
 label = labelSub (fieldname);
-isGM_Hemi = isHemiSub(fieldname, label, true);
+isGM_Hemi = isHemiSub(fieldname, label, isRightHemisphereSpared, isWhiteMatter);
 nROI = sum(isGM_Hemi(:));
 msk = triu(ones(nROI,nROI),1);
 mat = [];
@@ -26,8 +44,11 @@ for s = 1:numel(m)
     snam = m(s).name;
     mt = getMatSub(snam, fieldname, msk, isGM_Hemi);
     if isempty(mt)
-        fprintf('Skipping %s\n', snam);
+        %fprintf('Skipping %s\n', snam); %optional: report individuals with missing modality
         continue;
+    end
+    if isNorm
+       mt = normSub(mt); %normalize intensity for range of 0..1 
     end
     matOK = matOK + 1;
     mat(matOK,:) = mt;
@@ -58,16 +79,53 @@ fprintf('For %d files with %s, r min=\t%g\tmean=\t%g\tmax=\t%g\tstdev=\t%g\n',  
 toc
 %end fiberQA()
 
+function img = normSub(img);
+finite = isfinite(img);
+imgFinite = img(finite);
+if isempty(imgFinite), return; end;
+mn = min(imgFinite);
+rng = max(imgFinite) - mn;
+if rng == 0, return; end; %no range
+img = (img - mn)/rng; 
+img(~finite) = 0;
+%end normSub()
 
 function mt = getMatSub(matname, fieldname, msk, isGM_R)
-fld = fieldSub(matname, fieldname);
 mt = [];
-if  isempty(fld), return; end;
-%fprintf('Processing %s\n',  matName);
-mt =  fld.r; %189x189 matrix
-mt = mt(isGM_R,isGM_R); %53x53 matrix
-mt = mt(msk ~=0);
+fld = fieldSub(matname, fieldname);
+if  isempty(fld) %compute ROI e.g. fieldname=RestAve_jhu with m.RestAve.hdr
+    [~,nam,roi] = fileparts(strrep(fieldname, '_', '.')); %dtimn_jhu -> .jhu
+    roi = strrep(roi, '.', ''); %.jhu -> jhu
+    fld = fieldSub(matname, nam);
+    if  isempty(fld), return; end; %e.g. RestAve does not exist
+    if ~isfield(fld,'hdr'), return; end; %e.g. RestAve.hdr does not exist
+    s = nii_roi2stats (roi, fld.hdr, fld.dat);
+    fld = s.(roi);
+    if ~isfield(fld,'mean')
+        error('Unable to load "%s" from the file %s', fieldname, matname);
+    end
+    mt =  fld.mean; %189 row vector
+    mt = mt(isGM_R);
+    %mt = mt(msk(1,:) ~=0);
+    mt(~isfinite(mt)) = 0;
+    return; 
+end;
+
+if isfield(fld,'r')
+    mt =  fld.r; %189x189 matrix
+    mt = mt(isGM_R,isGM_R); %53x53 matrix
+    mt = mt(msk ~=0);
+else
+    if ~isfield(fld,'mean')
+        error('Unable to load "%s" from the file %s', fieldname, matname);
+    end
+    mt =  fld.mean; %189 row vector
+    mt = mt(isGM_R);
+    %mt = mt(msk(1,:) ~=0);
+    mt(~isfinite(mt)) = 0;
+end
 %end
+
 
 function label = labelSub(fieldname)
 [~,~,ext] = fileparts(strrep(fieldname, '_', '.')); %dtimn_jhu -> .jhu
@@ -95,7 +153,7 @@ else
 end
 %end fieldSub()
 
-function isGM_Hemi = isHemiSub(fieldname, label, isRightHemi)
+function isGM_Hemi = isHemiSub(fieldname, label, isRightHemi, isWhiteMatter)
 n = size(label,1);
 isGM_Hemi = zeros(n,1);
 if isRightHemi
@@ -104,9 +162,16 @@ else
     HemiKey = 'L|';
 end
 for i = 1: n
-    if ~isempty(strfind(label(i,:), HemiKey)) && isempty(strfind(label(i,:), '|2')) && isempty(strfind(label(i,:), '|3')) %right hemisphere, not gray or white matter
-        isGM_Hemi(i) = 1;
-        %fprintf('%s\n',label(i,:) );
+    if isWhiteMatter
+        if ~isempty(strfind(label(i,:), HemiKey)) && ~isempty(strfind(label(i,:), '|2')) %right hemisphere,  white matter
+            isGM_Hemi(i) = 1;
+            %fprintf('%s\n',label(i,:) );
+        end        
+    else
+        if ~isempty(strfind(label(i,:), HemiKey)) && isempty(strfind(label(i,:), '|2')) && isempty(strfind(label(i,:), '|3')) %right hemisphere, not CSF or white matter
+            isGM_Hemi(i) = 1;
+            %fprintf('%s\n',label(i,:) );
+        end
     end
 end
 fprintf('%s has %d regions of type "%s"\n', fieldname, sum(isGM_Hemi(:)), HemiKey);
