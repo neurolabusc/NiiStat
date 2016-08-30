@@ -17,6 +17,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 %Examples
 % NiiStat %use graphical interface
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
+%test
 
 fprintf('Version 1 August 2016 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
