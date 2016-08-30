@@ -72,7 +72,7 @@ end
 if ~exist('doSVM','var')
     doSVM = false;
 end
-doVoxReduce = false;
+doVoxReduce = true;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
@@ -81,7 +81,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',... %%GY
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -97,7 +97,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
       def = {'0','0.05','2','3','1','',''};
     end
     if designUsesNiiImages
-        def{4} = 'UNUSED (design file specifies voxelwise images)';,
+        def{4} = 'UNUSED (design file specifies voxelwise images)';
         def{5} = 'UNUSED (design file specifies voxelwise images)';
 
     end
@@ -145,6 +145,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
+    hemiKey = 0; %%% GY
+    if any(special == 10)
+        hemiKey = 1;
+    elseif any(special == 11)
+        hemiKey = 2;
+    end %%% \GY
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -156,7 +162,7 @@ for i = 1: length(modalityIndices) %for each modality
     for j = 1: length(roiIndices)
         roiIndex = roiIndices(j);
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname);
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname); %%GY
     end
 end
 %end nii_stat_mat()
@@ -230,7 +236,7 @@ nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname)
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -567,6 +573,21 @@ else %if voxelwise else region of interest analysis
     %provide labels for each region
     %les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
     %next: create labels for each region, add image values
+    
+    % if analysis is restricted to a hemisphere, make sure that roiMaskI is
+    % not used (if it is used, discard the hemisphere restriction)
+    if hemiKey > 0 %%GY
+        if isempty (roiMaskI) 
+            roiMaskI = extract_hemi_idxSub (les_names, hemiKey);
+            les_names = les_names(roiMaskI,:);
+            customROI = 1;
+        else
+            fprintf ('Hemisphere specification is discarded; ROI masking overwrites it\n');
+            hemiKey = 0;
+        end
+    end %%\GY
+    
+    
     if kAnalyzeCorrelationNotMean %strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
         labels = les_names;
         for i = 1:n_subj
@@ -761,13 +782,30 @@ index = ~cellfun('isempty',index);
 if (sum(index(:)) == 0)
     smallmat = mat;
     smalllabels = labels;
-    fprintf(' Analysis will include all regions (this template does not specify white and gray regions)')
+    fprintf(' Analysis will include all regions (this template does not specify white and gray regions)\n') %% GY
     return
 end;
 smallmat = mat(index,:);
 smallmat = smallmat(:,index);
 smalllabels = labels(index,:);
 %end shrink_matxSub()
+
+function hemi_idx = extract_hemi_idxSub (labels, hemiKey) %GY
+if hemiKey == 1
+    hemi_regexp = {'_L$', '-L\|', '_L\|', '_Left\|'};
+elseif hemiKey == 2
+    hemi_regexp = {'_R$', '-R\|', '_R\|', '_Right\|'};
+end
+hemi_idx = [];
+for i = 1:length (hemi_regexp)
+    hemi_idx = [hemi_idx; find(cellfun(@length, regexp (labels, hemi_regexp{i})))];
+end
+% if isempty (hemi_idx)
+%     fprintf(' Analysis will include all regions (left-right hemispheres are not specified in the atlas)\n');
+%     hemi_idx = 1:length (labels);
+% end
+%end extract_hemi_idxSub
+
 
 % function [fname] = findMatFileSub(fname, xlsname)
 % %looks for a .mat file that has the root 'fname', which might be in same
