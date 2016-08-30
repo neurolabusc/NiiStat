@@ -24,7 +24,7 @@ numFields = length (SNames);
 if numFields < 2
     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
 end
-imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
+% imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
 numNII = 0; %number of NIfTI files
 numMat = 0; %number of Mat files
 numOK = 0;
@@ -33,7 +33,7 @@ for i=1:size(dMat,2)
     matname = deblank( dMat(i).(SNames{1}));
     isValid = false;
     if numel(SNames) > 1
-        for j = 2:numel(SNames) 
+        for j = 2:numel(SNames)
             b = dMat(i).(SNames{j});
             if ~isempty(b) && isnumeric(b) && isfinite(b)
                 isValid = true;
@@ -57,7 +57,7 @@ for i=1:size(dMat,2)
             dMat(i).(SNames{1}) = matname;
             numOK = numOK + 1;
             designMat(numOK) = dMat(i); %#ok<AGROW>
-            
+
         end
     end
 end
@@ -87,7 +87,7 @@ end
 fname = fullfile(pth,[nam '.mat']);
 if exist(fname, 'file'), return; end;
 %next - check folder of Excel file
-%[xpth,~,~] = fileparts(xlsname);   
+%[xpth,~,~] = fileparts(xlsname);
 fname = fullfile(xpth,[nam ext]);
 if exist(fname, 'file'), return; end;
 fname = fullfile(xpth,[nam '.mat']);
