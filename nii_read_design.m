@@ -25,6 +25,7 @@ if numFields < 2
     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
 end
 % imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
+imgpath = fileparts(xlsname);
 numNII = 0; %number of NIfTI files
 numMat = 0; %number of Mat files
 numOK = 0;
