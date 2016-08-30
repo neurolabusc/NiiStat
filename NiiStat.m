@@ -1017,6 +1017,7 @@ if exist('.git','dir') %only check for updates if program was installed with "gi
     [~, r] = system('git status','-echo');
     if strfind(r,'behind')
         if askToUpdate
+            system('git reset --hard HEAD');
             [~, r] = system('git pull','-echo');
             showRestartMsg
         end
