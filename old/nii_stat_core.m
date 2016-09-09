@@ -1,5 +1,4 @@
-%function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, voxMask)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -12,7 +11,6 @@ function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask
 %                 -1 = False Discovery Rate (fast, different inference, depends on proportion of signal
 %                 set to extreme negative value (e.g. -5000) for 
 %               Ged Ridgeway notes you can estimate confidence intervals for peak permutation, e.g. 8000 permutes with p < 0.05 [~, ci] = binofit(0.05*8000, 8000)
-% logicalMask: ROIs/voxels are marked with 1 if they are to be analyzed, and with 0 if they are to be ignored (GY) 
 % kOnlyAnalyzeRegionsDamagedInAtleastNSubjects : (optional) only influences binomial imaging data
 %             will only examine voxels where at least this many individuals
 %             have a "1". This limits the number of tests to regions that
@@ -78,11 +76,30 @@ if ((isBinomialLes ||isBinomialBehav) && (numel(hdrTFCE) == 3))
     hdrTFCE = [];
 end 
 
-%%% GY: select good ROIs/voxels here
-numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
-good_idx = find (logicalMask);
-
-
+%next: identify which voxels/regions should be analyzed
+numROIorVox = size(les,2); %number of regions or voxels, regardless if they are good (have variability) or bad (no variability)
+bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %eliminate voxels/regions with no variability
+if kOnlyAnalyzeRegionsDamagedInAtleastNSubjects > 0  %isBinomialLes
+    bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < kOnlyAnalyzeRegionsDamagedInAtleastNSubjects)); %eliminate voxels/regions with no variability
+end
+good_idx = setdiff (1:size(les, 2), bad_idx);
+if length(good_idx) < 1 %no surviving regions/voxels
+    if isBinomialLes
+        error('%s error. no voxels damaged in at least %d participants.',mfilename,kOnlyAnalyzeRegionsDamagedInAtleastNSubjects);
+    else
+        error('%s error: no regions to analyze (voxels are either not-a-number or have no variability).',mfilename);
+    end
+end
+chDirSub(statname);
+diary ([deblank(statname) '.txt']);
+if kOnlyAnalyzeRegionsDamagedInAtleastNSubjects > 0 %isBinomialLes
+    fprintf('Only analyzing voxels non-zero in at least %d individuals.\n',kOnlyAnalyzeRegionsDamagedInAtleastNSubjects);
+end
+if size(beh,2) == 1
+    fprintf('**** Analyzing %s with %d participants for behavioral variable %s across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),deblank(beh_names{1}), length(good_idx), size(les,2));
+else
+    fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), length(good_idx), size(les,2));
+end
 %compute statistics
 les = les (:, good_idx); %squeeze data to only examine critical voxels
 if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
@@ -186,15 +203,7 @@ end %else report permutation thresholds
 if isempty(roi_names) %voxelwise
 	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask); 
 elseif numROIorVox ~= size(roi_names,1)
-    % added by GY
-%     z_unfolded = zeros (numROIorVox, size (z, 2));
-%     for i = 1:size (z, 2)
-%         z_unfolded (good_idx, i) = z(:, i);
-%     end
-%     reportResultsMatrix(z_unfolded,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,statname);
-    %%% /GY
-    
-    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,statname);    
+    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,statname);
 else %if voxelwise, else region of interest analysis
 	reportResultsROI(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,hdr,statname);
 end
@@ -203,7 +212,15 @@ cd .. %leave the folder created by chDirSub
 %end nii_stat_core()
 
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
-
+function chDirSub(statname)
+datetime=datestr(now);
+datetime=strrep(datetime,':',''); %Replace colon with underscore
+datetime=strrep(datetime,'-','');%Replace minus sign with underscore
+datetime=strrep(datetime,' ','_');%Replace space with underscore
+newdir = [statname '_' datetime ];
+mkdir(newdir);
+cd(newdir);
+%chDirSub()
 
 function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,statname)
 %handshake problem, http://en.wikipedia.org/wiki/Triangular_number http://math.fau.edu/richman/mla/triangle.htm

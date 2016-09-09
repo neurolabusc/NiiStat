@@ -1,5 +1,6 @@
 function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname)
 
+    
 if numel(les_names) ~= size(les,2) %for correlation analyses
  les_matrix = [];
  n = 0;

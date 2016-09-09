@@ -1,0 +1,10 @@
+-45	-67	37	1	1	1|Fox_tn_LP_L|lateral.parietal.left
+45	-67	37	1	1	2|Fox_LP_R|lateral.parietal.right
+-24	-13	52	1	1	3|Fox_FEF_L|Frontal.Eye.Fields.left
+24	-13	52	1	1	4|Fox_tp_FEF_R|Frontal.Eye.Fields.right
+-24	-58	46	1	1	5|Fox_tp_IPS_L|intraparietal.sulcus.left
+24	-58	46	1	1	6|Fox_IPS_R|intraparietal.sulcus.right
+-45	-70	-2	1	1	7|Fox_tp_MT_L|middle.temporal.left
+45	-70	-2	1	1	8|Fox_MT_R|middle.temporal.right
+0	47	-2	1	1	9|Fox_tn_MPF_C|medial.prefrontal
+0	-49	40	1	1	10|Fox_tn_PCC_C|precuneus

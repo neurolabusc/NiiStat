@@ -1,19 +1,50 @@
-function nii_roi2mm (ROIIndex)
+function str = nii_roi2mm (ROIIndex, forceRecalc)
 %report coordinates for each parcel in a region-of-interest map.
 % ROIindex : (optional) number for region of interest
+% forceRecalc : (optional) re-generate even if node file exists in ROI folder
 %Examples
 % nii_roi2mm; %use GUI
 % nii_roi2mm(2);
+% str = nii_roi2mm('jhu');
 
-[kROI, kROINumbers] = nii_roi_list() ;
+if exist('ROIIndex','var') && ~isnumeric(ROIIndex) %convert text to numeric 'jhu' -> 7
+    [kROI, kROINumbers, ROIIndex] = nii_roi_list(ROIIndex) ;
+else
+    [kROI, kROINumbers] = nii_roi_list() ;
+end
+
 if ~exist('ROIIndex','var') %region of interest not specified
     ROIIndex = str2double(cell2mat(inputdlg(['RoiIndex (' sprintf('%s',kROINumbers) ')'], 'Choose image', 1,{'2'})));
 end;
+
+if ~exist('forceRecalc','var')
+    forceRecalc = false;
+end
+
 ROIname = deblank(kROI(ROIIndex,:));
+nodename = [ROIname '.node'];
+if (forceRecalc) || ~exist(nodename,'file')
+    str = calcSub(ROIname);
+else
+    str = fileread(nodename);
+end
+if ~exist(nodename,'file')
+   fileID = fopen(nodename,'w');
+   fprintf(fileID, str);
+   fclose(fileID); 
+end
+if nargout < 1
+    fprintf(str);
+end
+%hdr.mat
+%end nii_roi2mm()
+
+function str = calcSub (ROIname)
 label = labelSub ([ROIname '.txt']);
 hdr = spm_vol ([ROIname '.nii']);
 img = spm_read_vols (hdr);
-fprintf('Region\tNumber\tX\tY\tZ\n');
+fprintf('Calculating BrainNetViewer format file %s\n', [ROIname '.node']);
+str = '';
 for i = 1: max(img(:))
     %identify voxels in region
     img1 = zeros(size(img));
@@ -25,11 +56,13 @@ for i = 1: max(img(:))
     vox(3) = sum(squeeze(sum(sum(img1,2),1))'.*(1:size(img1,3)))/sumTotal; %dimension 3
     %convert from voxels to mm
     mm=vox*hdr.mat(1:3, 1:3)'+hdr.mat(1:3, 4)';
+    lbl = deblank(label(i,:));
+    lbl = strrep(lbl, ' ', '.');
     %report coordinates
-    fprintf('%s\t%d\t%g\t%g\t%g\n',deblank(label(i,:)), i, mm(1), mm(2), mm(3)); 
+    str = [str sprintf('%g\t%g\t%g\t1\t1\t%s\n', mm(1), mm(2), mm(3), lbl)];  %#ok<AGROW>
 end
-%hdr.mat
-%end nii_roi2mm()
+%end calcSub()
+
 
 function label = labelSub (ROIname)
 if ~exist(ROIname,'file'), error('Unable to find %s',ROIname); end;
