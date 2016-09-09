@@ -82,7 +82,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',... 
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -146,12 +146,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
-    hemiKey = 0; 
+    hemiKey = 0;
     if any(special == 10)
         hemiKey = 1;
     elseif any(special == 11)
         hemiKey = 2;
-    end 
+    end
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -268,7 +268,7 @@ if roiIndex == 0 %voxelwise lesion analysis
    ROIfield = deblank(kModalities(modalityIndex,:));
 else
     if doVoxReduce
-        fprintf('doVoxReduce disabled: only for voxelwise analyses only\n');
+        %fprintf('doVoxReduce disabled: only for voxelwise analyses\n');
         doVoxReduce = false;
     end
     if doTFCE
@@ -534,7 +534,7 @@ if roiIndex == 0 %voxelwise lesion analysis
         end
         %fprintf('%d/%d= %d\n',i,n_subj, numel(subj_data{i}.(ROIfield).dat(:)));
 
-        les(i, :) = subj_data{i}.(ROIfield).dat(:); %#ok<AGROW> 
+        les(i, :) = subj_data{i}.(ROIfield).dat(:); %#ok<AGROW>
         logicalMask = logical (ones (size (les, 2), 1)); %%% added by GY
     end
     nanIndex = isnan(les(:));
@@ -576,20 +576,20 @@ else %if voxelwise else region of interest analysis
     %provide labels for each region
     %les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
     %next: create labels for each region, add image values
-    
 
-    if hemiKey > 0 
-        if isempty (roiMaskI) 
+
+    if hemiKey > 0
+        if isempty (roiMaskI)
             roiMaskI = extract_hemi_idxSub (les_names, hemiKey);
             customROI = 1;
         else
             roiMaskI = intersect (roiMaskI, extract_hemi_idxSub (les_names, hemiKey));
         end
-    end 
-    
-  
+    end
+
+
     if kAnalyzeCorrelationNotMean %strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
-        
+
         if GrayMatterConnectivityOnly
             GM_mask = get_GM_Sub(les_names);
             GM_idx = find (GM_mask);
@@ -599,8 +599,8 @@ else %if voxelwise else region of interest analysis
                 roiMaskI = intersect (roiMaskI, GM_idx);
             end
         end
-        
-        
+
+
         labels = les_names;
         for i = 1:n_subj
             %http://stackoverflow.com/questions/13345280/changing-representations-upper-triangular-matrix-and-compact-vector-octave-m
@@ -615,8 +615,8 @@ else %if voxelwise else region of interest analysis
             B = triu(ones(size(A)),1);
             les(i, :) = A(B==1); %#ok<AGROW>
             if isempty (roiMaskI)
-                logicalMask = logical (ones (size (les, 2), 1)); 
-            else    
+                logicalMask = logical (ones (size (les, 2), 1));
+            else
                 C = ones (size (A));
                 to_exclude = setdiff (1:length(labels), roiMaskI);
                 C (to_exclude, :) = 0; C (:, to_exclude) = 0;
@@ -631,7 +631,7 @@ else %if voxelwise else region of interest analysis
     else %not DTI n*n connectivity matrix
         for i = 1:n_subj
             les(i, :) = subj_data{i}.(ROIfield).mean;
-            
+
             %%%% commented out by GY
             %             if ~isempty(roiMaskI)
             %                 A = subj_data{i}.(ROIfield).mean;
@@ -707,7 +707,7 @@ if (reportROIvalues) && (numel(les_names) < 1)
 elseif (reportROIvalues) && (kAnalyzeCorrelationNotMean)
     fprintf('Unable to create a ROI report [correlation matrix analyses]\n');
 elseif reportROIvalues
-    %note this next conditional removes regions with little variability. 
+    %note this next conditional removes regions with little variability.
     %  n.b. this same step is built into nii_stat_core, but we will do it here
     %  so reportROIvalues will match what will be computed
     if (minOverlap > 1) && (numel(les_names) > 0)
@@ -717,10 +717,10 @@ elseif reportROIvalues
                 nOK = nOK + 1;
                 les(:, nOK) = les(:, j);
                 les_names{nOK} = les_names{j};
-            end  
+            end
         end %for j
-        if nOK < 1 
-           error('No regions non-zero in at least %d individuals', minOverlap); 
+        if nOK < 1
+           error('No regions non-zero in at least %d individuals', minOverlap);
         end
         if nOK < numel(les_names)
             fprintf('%d of %d regions non-zero in at least %d individuals\n', nOK, numel(les_names), minOverlap);
@@ -795,13 +795,13 @@ if sum(isnan(beh(:))) > 0
             %les1(j,1) = beh1(j); %to test analyses
         end
         if doSVM
-            les1 = les1 (logicalMask); 
+            les1 = les1 (logicalMask);
             les_names = les_names (logicalMask);
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE, voxMask); % GY
-            
+
         end
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
@@ -860,7 +860,7 @@ smalllabels = labels(index,:);
 % modified version: return a binary mask of regions
 % where 1 is a GM region, and 0 is WM or CSF -- GY
 function GM_mask = get_GM_Sub(labels)
-% returns 
+% returns
 index = strfind(cellstr(labels),'|1');
 index = ~cellfun('isempty',index);
 if (sum(index(:)) == 0)

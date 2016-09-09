@@ -7,16 +7,13 @@ function str = nii_roi2mm (ROIIndex, forceRecalc)
 % nii_roi2mm(2);
 % str = nii_roi2mm('jhu');
 
-if exist('ROIIndex','var') && ~isnumeric(ROIIndex) %convert text to numeric 'jhu' -> 7
-    [kROI, kROINumbers, ROIIndex] = nii_roi_list(ROIIndex) ;
-else
-    [kROI, kROINumbers] = nii_roi_list() ;
+if exist('ROIIndex','var') %&& ~isnumeric(ROIIndex) %convert text to numeric 'jhu' -> 7
+    [kROI, kROINumbers, ROIIndex] = nii_roi_list(ROIIndex, false) ;
 end
-
 if ~exist('ROIIndex','var') %region of interest not specified
     ROIIndex = str2double(cell2mat(inputdlg(['RoiIndex (' sprintf('%s',kROINumbers) ')'], 'Choose image', 1,{'2'})));
 end;
-
+if (ROIIndex < 1) || (ROIIndex > size(kROI,1)), fprintf('%s Unknown ROI', mfilename); return; end;
 if ~exist('forceRecalc','var')
     forceRecalc = false;
 end
