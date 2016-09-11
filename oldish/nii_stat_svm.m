@@ -1,4 +1,4 @@
-function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask)
+function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname)
 
 if numel(les_names) ~= size(les,2) %for correlation analyses
  les_matrix = [];
@@ -13,11 +13,6 @@ if numel(les_names) ~= size(les,2) %for correlation analyses
  end
  les_names = les_matrix;
 end
-
-%%% added by GY
-les = les (:, logicalMask);
-les_names = les_names (logicalMask);
-
 if numel(les_names) ~= size(les,2)
     fprintf('%s error: number of feature names does not match number of features',mfilename);
     return;

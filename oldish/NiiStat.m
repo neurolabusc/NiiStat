@@ -557,6 +557,12 @@ else %if voxelwise else region of interest analysis
         global global_roiMask
         roiMaskI = global_roiMask; %inclusion mask
     end
+    if ~isempty(roiMaskI)
+%        les_names = les_names(roiMaskI,:);
+        les_names = les_names (roiMaskI); %% maybe this needs to be completely changed -- GY
+    end
+
+
 
     %find the appropriate ROI
     %[mpth,~,~] = fileparts( deblank (which(mfilename)));
@@ -754,9 +760,6 @@ bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %elim
 if minOverlap > 0  %isBinomialLes
     bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < minOverlap)); %eliminate voxels/regions with no variability
 end
-%%% the following line added by GY
-logicalMask (bad_idx) = 0;
-
 good_idx = setdiff (1:size(les, 2), bad_idx);
 if length(good_idx) < 1 %no surviving regions/voxels
     if isBinomialLes
@@ -765,21 +768,18 @@ if length(good_idx) < 1 %no surviving regions/voxels
         error('%s error: no regions to analyze (voxels are either not-a-number or have no variability).',mfilename);
     end
 end
-
-% moved here from nii_stat_core by GY
 chDirSub(statname);
 diary ([deblank(statname) '.txt']);
-
 if minOverlap > 0 %isBinomialLes
     fprintf('Only analyzing voxels non-zero in at least %d individuals.\n',minOverlap);
 end
-
-% the following fprintf's slightly modified by GY
 if size(beh,2) == 1
-    fprintf('**** Analyzing %s with %d participants for behavioral variable %s across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),deblank(beh_names{1}), sum(double(logicalMask)), size(les,2));
+    fprintf('**** Analyzing %s with %d participants for behavioral variable %s across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),deblank(beh_names{1}), length(good_idx), size(les,2));
 else
-    fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), sum(double(logicalMask)), size(les,2));
+    fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), length(good_idx), size(les,2));
 end
+%%% the following line added by GY
+logicalMask (bad_idx) = 0;
 
 
 if sum(isnan(beh(:))) > 0
@@ -794,20 +794,15 @@ if sum(isnan(beh(:))) > 0
             les1(j, :) = les(good_idx(j), :) ;
             %les1(j,1) = beh1(j); %to test analyses
         end
-        
-%         chDirSub(statname);
-%         diary ([deblank(statname) '.txt']);
-%         
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
+            les1 = les1 (logicalMask);
+            les_names = les_names (logicalMask);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE, voxMask); % GY
+
         end
-        
-%         diary off
-%         cd .. %leave the folder created by chDirSub
-        
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
 else
@@ -817,16 +812,13 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
+        les = les (logicalMask);
+        les_names = les_names (logicalMask);
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
         nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, voxMask);  % GY
     end
 end
-
-% moved here from nii_stat_core by GY
-diary off
-cd .. %leave the folder created by chDirSub
-
 %end processMatSub()
 
 % the following function is not used -- GY

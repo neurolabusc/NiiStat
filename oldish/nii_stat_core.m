@@ -82,10 +82,6 @@ end
 numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
 good_idx = find (logicalMask);
 
-%added by GY
-if isempty (good_idx)
-    error ('No ROIs or voxels pass selection criteria. Exiting...');
-end
 
 %compute statistics
 les = les (:, good_idx); %squeeze data to only examine critical voxels
@@ -194,8 +190,8 @@ elseif numROIorVox ~= size(roi_names,1)
 else %if not voxelwise or matrix: must be region of interest analysis
 	reportResultsROI(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,hdr,statname);
 end
-%diary off
-%cd .. %leave the folder created by chDirSub
+diary off
+cd .. %leave the folder created by chDirSub
 %end nii_stat_core()
 
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
