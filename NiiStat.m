@@ -309,6 +309,7 @@ end
 %for large voxel datasets - first pass to find voxels that vary
 voxMask = [];
 %if false
+matVer = inf;
 if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1)) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
@@ -320,6 +321,7 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
             error('Please use nii_nii2mat before conducting a large voxelwise statistics');
         elseif (exist (in_filename, 'file'))
             dat = load (in_filename);
+            matVer = matVerSub(dat, matVer);
             if  issubfieldSub(dat,subfield)
                 hdr = dat.(ROIfield).hdr;
                 img = dat.(ROIfield).dat;
@@ -388,6 +390,7 @@ for i = 1:size(matnames,1)
         else
             %dat = load (in_filename, subfield);
             dat = load (in_filename);
+            matVer = matVerSub(dat, matVer);
             [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat, subfield);
             %if  issubfieldSub(dat,'lesion.dat')
             %	fprintf ('Volume\t%g\tfor\t%s\n',sum(dat.lesion.dat(:)), in_filename);
@@ -440,7 +443,7 @@ for i = 1:size(matnames,1)
         fprintf('Unable to find file %s\n', in_filename);
     end
 end
-
+matVerCheckSub(matVer);
 clear('dat'); %these files tend to be large, so lets explicitly free memory
 n_subj = idx;
 if n_subj < 3
@@ -1122,15 +1125,6 @@ uiwait(msgbox('The program must be restarted for changes to take effect. Click "
 exit;
 %end showRestartMsg()
 
-function showUnzipMsg(pth)
-fprintf('Go to file: %s\n\nUnzip and enter password',pth);
-uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
-%end showRestartMsg()
-
-function h = showDownloading
-h = msgbox('Downloading matfiles...','Downloading');
-%end showRestartMsg()
-
 function a = askToUpdate
 % Construct a questdlg
 choice = questdlg(sprintf('An update for %s is available. Would you like to update?',mfilename), ...
@@ -1145,33 +1139,74 @@ switch choice
 end
 %end askToUpdate()
 
-function a = askToUpdateMatFiles
-% Construct a questdlg
-choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
-	'Auto update', ...
-	'Yes','No','Yes');
-% Handle response
-switch choice
-    case 'Yes'
-        a = true;
-    case 'No'
-        a = false;
-end
-%end askToUpdateMatFiles()
+% function h = showDownloading
+% h = msgbox('Downloading matfiles...','Downloading');
+% %end showRestartMsg()
+% 
+% function showUnzipMsg(pth)
+% fprintf('Go to file: %s\n\nUnzip and enter password',pth);
+% uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
+% %end showRestartMsg()
 
-function checkForMostRecentMatFiles(repoPath)
-repo = 'NiiMatFiles';
-prevPath= pwd;
-if exist(repoPath,'dir')
-    cd(repoPath);
+% function a = askToUpdateMatFiles
+% % Construct a questdlg
+% choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
+% 	'Auto update', ...
+% 	'Yes','No','Yes');
+% % Handle response
+% switch choice
+%     case 'Yes'
+%         a = true;
+%     case 'No'
+%         a = false;
+% end
+% %end askToUpdateMatFiles()
+
+% function checkForMostRecentMatFiles(repoPath)
+% repo = 'NiiMatFiles';
+% prevPath= pwd;
+% if exist(repoPath,'dir')
+%     cd(repoPath);
+% end
+% if askToUpdateMatFiles
+%     dlh = showDownloading;
+%     pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
+%     delete(dlh);
+%     showUnzipMsg(pthToFile);
+% end
+% cd(prevPath);
+% %checkForMostRecentMatFiles()
+
+function matVer = matVerSub(mat, matVer)
+%return minimum mat.T1.lime across a series of matlab files
+if ~isfield(mat,'T1') || ~isfield(mat.T1,'lime') || (matVer <= mat.T1.lime), return; end;
+matVer = mat.T1.lime;
+%matVerSub()
+
+function matVerCheckSub(matVer)
+if ~isfinite(matVer), return; end;
+url = 'http://people.cas.sc.edu/rorden/matfiles/index.html';
+try
+	str = urlread(url);
+catch
+	warning('Unable to verify lime files: could not connect to connect to %s',url);
+	return;
 end
-if askToUpdateMatFiles
-    dlh = showDownloading;
-    pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
-    delete(dlh);
-    showUnzipMsg(pthToFile);
-end
-cd(prevPath);
+key = '<a href="M.';
+pos = strfind(str,key);
+if isempty(pos), return; end;
+str = str((pos(1)+numel(key)):end);
+key = '.dmg"';
+pos = strfind(str,key);
+if isempty(pos), return; end;
+str = str(1:(pos(1)-1));
+vers = str2num(str);
+if isempty(vers), return; end;
+if vers <= matVer, fprintf('Your LIME mat files are up to date\n'); return; end;
+urlupdate = fullfile(fileparts(url), ['M.', str, '.dmg']);
+warning('You have mat files %4.4f, the current version is %4.4f', matVer, vers); 
+fprintf('Go to <a href="%s">%s</a> for mat files %4.4f\n', urlupdate, urlupdate, vers);
+%matVerCheckSub()
 
 % moved from nii_stat_core by GY
 function chDirSub(statname)
