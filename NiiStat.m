@@ -243,7 +243,7 @@ function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh,
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
 [kModalities, ~] = nii_modality_list();
 if (modalityIndex > size(kModalities,1)) || (modalityIndex < 1)
-    fprintf('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
+    error('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
     return;
 end
 if roiIndex < 0
