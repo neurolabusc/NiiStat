@@ -65,7 +65,8 @@ for j = 1:size(beh_names,2) %for each beahvioral variable
                     upper_triangle = logical (triu (ones (nLabel), 1));
                     weight_matrix (upper_triangle) = unfolded_map;
                     [~, atlas_name] = fileparts (roifname);
-                    saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
+                    %saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
+                    nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '.nodz'], logicalMask);
                 end
             end % for k = 1:length(loadingMap)
         end 
@@ -123,17 +124,17 @@ mkdir(newdir);
 cd(newdir);
 %chDirSub()
 
-function saveNodzSub(roiname, matvals, nodzname) 
-if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
-[kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
-if ROIIndex < 1, return; end; %unable to find ROI
-str = nii_roi2mm (ROIIndex);
-fileID = fopen(nodzname,'w');
-fprintf(fileID, str);
-fprintf(fileID, '#ENDNODE\n');
-fclose(fileID);
-dlmwrite(nodzname,matvals,'delimiter','\t','-append')
-%saveNodzSub
+% function saveNodzSub(roiname, matvals, nodzname) 
+% if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
+% [kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
+% if ROIIndex < 1, return; end; %unable to find ROI
+% str = nii_roi2mm (ROIIndex);
+% fileID = fopen(nodzname,'w');
+% fprintf(fileID, str);
+% fprintf(fileID, '#ENDNODE\n');
+% fclose(fileID);
+% dlmwrite(nodzname,matvals,'delimiter','\t','-append')
+% %saveNodzSub
 
 function reportLoadingsSub (featureLoadings, les_names, beh_name, p, classification)
 if p > 0.3

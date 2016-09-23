@@ -81,7 +81,6 @@ end
 %%% GY: select good ROIs/voxels here
 numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
 good_idx = find (logicalMask);
-
 %added by GY
 if isempty (good_idx)
     error ('No ROIs or voxels pass selection criteria. Exiting...');
@@ -190,7 +189,7 @@ end %else report permutation thresholds
 if isempty(roi_names) %voxelwise
 	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask);
 elseif numROIorVox ~= size(roi_names,1)
-    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname);
+    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname, logicalMask);
 else %if not voxelwise or matrix: must be region of interest analysis
 	reportResultsROI(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,hdr,statname);
 end
@@ -201,7 +200,7 @@ end
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
 
 
-function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname)
+function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname, logicalMask)
 %handshake problem, http://en.wikipedia.org/wiki/Triangular_number http://math.fau.edu/richman/mla/triangle.htm
 nLabel = size(roi_names,1);
 nTri = nLabel*(nLabel-1)*0.5;
@@ -239,26 +238,30 @@ for i = 1:length(beh_names)
         end
         stat.threshZ(xRow,yCol) = z_column(signif_idx(j));
     end
+    stat.logicalMask = logicalMask;
     matname = sprintf ('%s_%s.mat',statname, deblank(beh_names{i}));
     save(matname,'-struct', 'stat');
     nodzname = sprintf ('%s_%sZ.nodz',statname, deblank(beh_names{i}));
-    saveNodzSub(stat.roiname, stat.threshZ, nodzname);
-    nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
-    saveNodzSub(stat.roiname, stat.threshR, nodzname);    
+    %saveNodzSub(stat.roiname, stat.threshZ, nodzname);
+    nii_save_nodz(stat.roiname, stat.threshZ, nodzname, logicalMask);
+    if ~isempty(c) %if we have correlation values
+        nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
+        nii_save_nodz(stat.roiname, stat.threshR, nodzname, logicalMask);
+    end;
 end
 %end reportResultsMatrix()
 
-function saveNodzSub(roiname, matvals, nodzname); 
-if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
-[kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
-if ROIIndex < 1, return; end; %unable to find ROI
-str = nii_roi2mm (ROIIndex);
-fileID = fopen(nodzname,'w');
-fprintf(fileID, str);
-fprintf(fileID, '#ENDNODE\n');
-fclose(fileID);
-dlmwrite(nodzname,matvals,'delimiter','\t','-append')
-%saveNodzSub
+% function saveNodzSub(roiname, matvals, nodzname, good_idx) 
+% if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
+% [kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
+% if ROIIndex < 1, return; end; %unable to find ROI
+% str = nii_roi2mm (ROIIndex);
+% fileID = fopen(nodzname,'w');
+% fprintf(fileID, str);
+% fprintf(fileID, '#ENDNODE\n');
+% fclose(fileID);
+% dlmwrite(nodzname,matvals,'delimiter','\t','-append')
+% %saveNodzSub
 
 function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname) %,voxMask)
 for i = 1:length(beh_names) %or size(beh,2)

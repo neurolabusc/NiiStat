@@ -1,4 +1,4 @@
-function str = nii_roi2mm (ROIIndex, forceRecalc)
+function [str, cstr] = nii_roi2mm (ROIIndex, forceRecalc)
 %report coordinates for each parcel in a region-of-interest map.
 % ROIindex : (optional) number for region of interest
 % forceRecalc : (optional) re-generate even if node file exists in ROI folder
@@ -6,6 +6,7 @@ function str = nii_roi2mm (ROIIndex, forceRecalc)
 % nii_roi2mm; %use GUI
 % nii_roi2mm(2);
 % str = nii_roi2mm('jhu');
+% [~, cstr] = nii_roi2mm('jhu'); %read as cell string
 
 if exist('ROIIndex','var') %&& ~isnumeric(ROIIndex) %convert text to numeric 'jhu' -> 7
     [kROI, kROINumbers, ROIIndex] = nii_roi_list(ROIIndex, false) ;
@@ -33,7 +34,12 @@ end
 if nargout < 1
     fprintf(str);
 end
-%hdr.mat
+if nargout < 2, return; end;
+%either of the next two work, though dataread might be a bit faster
+%cstr = textread(nodename, '%s', 'delimiter', '\n');
+cstr = dataread('file', nodename, '%s', 'delimiter', '\n');
+%next line is optional: removes commented lines (lines that start with '#'
+cstr(cellfun('isempty',regexprep(cstr,'^#.*',''))) = [];
 %end nii_roi2mm()
 
 function str = calcSub (ROIname)
