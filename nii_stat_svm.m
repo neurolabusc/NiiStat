@@ -59,14 +59,14 @@ for j = 1:size(beh_names,2) %for each beahvioral variable
                 unfolded_map = zeros (length (logicalMask), 1);
                 unfolded_map (logicalMask) = loadingMap{k};
                 if ~analyzing_connectome
-                    nii_array2roi (unfolded_map, roifname, [out_name{k} '.nii']);
+                    nii_array2roi (unfolded_map, roifname, [out_name{k} '_unthreshZ.nii']);
                 else
                     weight_matrix = zeros (nLabel, nLabel);
                     upper_triangle = logical (triu (ones (nLabel), 1));
                     weight_matrix (upper_triangle) = unfolded_map;
                     [~, atlas_name] = fileparts (roifname);
                     %saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
-                    nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '.nodz'], logicalMask);
+                    nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '_unthreshZ.nodz'], logicalMask);
                 end
             end % for k = 1:length(loadingMap)
         end 

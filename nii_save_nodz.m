@@ -1,4 +1,4 @@
-function nii_save_nodz(roiname, matvals, nodzname, logicalMask) 
+function TriBin = nii_save_nodz(roiname, matvals, nodzname, logicalMask) 
 %logical mask is optional: if provided unused nodes appear smaller
 % roiname : region used for connectome, e.g. 'jhu', 'AICHA'
 % matvals : a NxN matrix with edge values, e.g. for JHU atlas 189x189 cells
