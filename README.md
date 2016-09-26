@@ -6,6 +6,10 @@ This GitHub archive contains the latest release. For usage see the [NITRC websit
 
 ##### Versions
 
+
+20September2016 :
+ - Saves node/edge map for connectome analyses (DTI/Rest, GLM/SVM)
+
 30June2016 :
  - Main program name changed from "nii_stat" to "NiiStat" to match NITRC
  - Behavioral data should be in excel spreadsheet tab named "NiiStat" (old format expected "Data (2)", which still works).
