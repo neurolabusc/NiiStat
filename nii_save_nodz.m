@@ -29,7 +29,8 @@ if (numel(logicalMask) ~= numROIorVox)
 end
 TriBin(find(TriBin>0)) = logicalMask; %#ok<FNDSB>
 %shrink diameter/size of any unused nodes
-labelsOK = (sum(TriBin) > 0);
+% labelsOK = (sum(TriBin') > 0); %label ok if either row OR column has an entry
+labelsOK =  ((sum(TriBin) > 0) + (sum(TriBin') > 0));
 for i = nLabel : -1 : 1
     if ~labelsOK(i)
         %cstr(i) = []; % <- to remove unused nodes
@@ -38,6 +39,9 @@ for i = nLabel : -1 : 1
         parts{5} = '0.1';
         cstr{i}=[sprintf('%s\t',parts{1:end-1}),parts{end}];
         %fprintf('UNTESTED REGION: %s\n',parts{end});
+    elseif false %next lines only for testing!
+        parts = regexp(cstr{i},'\t','split');
+        fprintf('TESTED REGION: %s\n',parts{end});
     end
 end
 fileID = fopen(nodzname,'w');

@@ -238,12 +238,21 @@ for i = 1:length(beh_names)
         end
         stat.threshZ(xRow,yCol) = z_column(signif_idx(j));
     end
+    %unthresholded data
+    stat.unthreshZ = zeros(nLabel,nLabel);
+    for j = 1:length (z_column)
+        [xRow,yCol] = find(FullMat == good_idx(j),1) ;
+        stat.unthreshZ(xRow,yCol) = z_column(j);
+    end
+    %save data
     stat.logicalMask = logicalMask;
     matname = sprintf ('%s_%s.mat',statname, deblank(beh_names{i}));
     save(matname,'-struct', 'stat');
+    %save node masks
     nodzname = sprintf ('%s_%sZ.nodz',statname, deblank(beh_names{i}));
-    %saveNodzSub(stat.roiname, stat.threshZ, nodzname);
     nii_save_nodz(stat.roiname, stat.threshZ, nodzname, logicalMask);
+    nodzname = sprintf ('%s_%s_unthreshZ.nodz',statname, deblank(beh_names{i}));
+    nii_save_nodz(stat.roiname, stat.unthreshZ, nodzname, logicalMask); 
     if ~isempty(c) %if we have correlation values
         nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
         nii_save_nodz(stat.roiname, stat.threshR, nodzname, logicalMask);
