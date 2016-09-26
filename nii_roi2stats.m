@@ -35,15 +35,24 @@ if (length(inimg) < 1),
     fprintf('No image data to reslice');
     return;
 end; %escape if no selection
-niiName = [roiName '.nii'];
+%niiName = [roiName '.nii'];
+niiName = [fileparts(which(mfilename))  filesep 'roi' filesep roiName '.nii']; %precedence expected NiiStat location
 if exist(niiName, 'file') ~= 2 %unable to find image
-    niiName = [fileparts(which(mfilename))  filesep 'roi' filesep roiName '.nii'];
+    %niiName = [fileparts(which(mfilename))  filesep 'roi' filesep roiName '.nii'];
+    niiName = [roiName '.nii']; %fallback to somewhere in path
     if exist(niiName, 'file') ~= 2
         fprintf('%s did not find region of interest named %s\n',mfilename, niiName);
         return;
     end
 end
+%niiName = which(niiName); %provide full path
+
 [pth, roiShortName] = fileparts(niiName);
+if isempty(pth)
+    niiName = which(niiName);
+    [pth, roiShortName] = fileparts(niiName);
+end
+
 txtName = fullfile(pth, [roiShortName '.txt']);
 if exist(txtName, 'file') ~= 2 %unable to find image
     fprintf('%s did not find region of interest named %s\n',mfilename, txtName);

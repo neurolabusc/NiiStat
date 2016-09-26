@@ -1,12 +1,12 @@
-function [r, z_map, labels, predicted_labels] = nii_stat_svr_core (xlsname, normRowCol, verbose, minUnique, islinear, nuSVR, deleteCols, clipping)
+function [r, z_map, labels, predicted_labels, p] = nii_stat_svr_core (xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR, deleteCols)
 % xlsname : file name to analyze
+% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
 % verbose : text details none [0, default], extensive [1]
 % minUnique : mininum number of unique features to use a feature (0 = default)
 % islinear: use linear (1, default) or non-linear (0) fitting
 % nuSVR : use nu-SVR (1) or epsilon-SVR (0, default)
 % deleteCols : remove specified columns from analysis
-% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
 %example
 % nii_stat_svr_core ('lesionacute_better_svr.tab')
 
@@ -74,7 +74,7 @@ else
     [data, good_idx] = requireVarSub(data);
 end
 
-fprintf(' %s (''%s'', %g, %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, verbose, minUnique, islinear, nuSVR);
+fprintf(' %s (''%s'', %g, %g, %g, %g, %g, %g);\n', mfilename, xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR);
 if normRowCol ==  -2% rows [1], or columns [2], minus means exclude final column
     fprintf('Normalizing so each column has range 0..1 (last column excluded)\n');
     data(:,1:end-1) = normColSub(data(:,1:end-1));
@@ -87,6 +87,13 @@ elseif normRowCol ==  1% rows [1], or columns [2]
 elseif normRowCol ==  2% rows [1], or columns [2]
     %fprintf('Normalizing so each column has range 0..1\n');
     data = normColSub(data);
+end
+if clipping == 0
+    fprintf ('Two-tailed analysis; keeping both positive and negative features\n');
+elseif clipping == 1
+    fprintf ('One-tailed analysis; keeping only positive features\n');
+else
+    fprintf ('One-tailed analysis; keeping only negative features\n');
 end
 labels = num (:, size (num, 2));
 labels = normColSub(labels); %CR 20April2015
@@ -134,15 +141,16 @@ for subj = 1:n_subj
 %             
 %     end
     if (clipping == 1)
-        ww (find (ww > 0)) = 0;
-    elseif (clipping == -1)
         ww (find (ww < 0)) = 0;
+    elseif (clipping == -1)
+        ww (find (ww > 0)) = 0;
     end
     predicted_labels(subj) = ww*data(subj, :)' + bb;
     % step 3 of scale correction: rescale using estimated scale&offset
     predicted_labels(subj) = a*predicted_labels(subj) + b;
     map (subj, :) = ww; % used to be SVM.sv_coef' * SVM.SVs;
 end
+predicted_labels = normColSub(predicted_labels); % GY
 
 %accuracy = sum (predicted_labels' == labels) / n_subj;
 %[r, p] = corr (predicted_labels', labels)
@@ -163,11 +171,15 @@ if exist('good_idx','var') %insert NaN for unused features
     z_map = z_mapOK;
 end
 %plot results
+figure;
 plot (labels, predicted_labels, 'o');
 axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
+plot_title = className{1};
+plot_title (plot_title == '_') = '-';
+title (sprintf ('%s; clipping = %d', plot_title, clipping));
 %end nii_stat_svr_core()
 
 function [num, txt] = tabreadSub(tabname)

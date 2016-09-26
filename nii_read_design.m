@@ -24,6 +24,8 @@ numFields = length (SNames);
 if numFields < 2
     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
 end
+% imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
+imgpath = fileparts(xlsname);
 numNII = 0; %number of NIfTI files
 numMat = 0; %number of Mat files
 numOK = 0;
@@ -32,7 +34,7 @@ for i=1:size(dMat,2)
     matname = deblank( dMat(i).(SNames{1}));
     isValid = false;
     if numel(SNames) > 1
-        for j = 2:numel(SNames) 
+        for j = 2:numel(SNames)
             b = dMat(i).(SNames{j});
             if ~isempty(b) && isnumeric(b) && isfinite(b)
                 isValid = true;
@@ -44,9 +46,7 @@ for i=1:size(dMat,2)
         matname = '';
     end
     if ~isempty(matname)
-        
-        [matname] = findMatFileSub(matname,xlsname);
-        
+        [matname] = findMatFileSub(matname,imgpath, xlsname);
         [~, ~, ext] = fileparts(matname);
 
         if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
@@ -58,15 +58,15 @@ for i=1:size(dMat,2)
             dMat(i).(SNames{1}) = matname;
             numOK = numOK + 1;
             designMat(numOK) = dMat(i); %#ok<AGROW>
-            
+
         end
     end
 end
 if (numNII + numMat) == 0
-    error('Unable to find any of the images listed in the file %s\n',xlsname);
+    error('Unable to find any of the images listed in the file %s\n',imgpath);
 end
 if (numNII > 0) && (numMat >0) %mixed file
-    error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
+    error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',imgpath);
 end
 if (numNII > 0)
     fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
@@ -74,7 +74,7 @@ if (numNII > 0)
 end
 %end nii_read_design()
 
-function [fname] = findMatFileSub(fname, xlsname)
+function [fname] = findMatFileSub(fname, xpth, xlsname)
 %looks for a .mat file that has the root 'fname', which might be in same
 %folder as Excel file xlsname
 fnameIn = fname;
@@ -88,13 +88,13 @@ end
 fname = fullfile(pth,[nam '.mat']);
 if exist(fname, 'file'), return; end;
 %next - check folder of Excel file
-[xpth,~,~] = fileparts(xlsname);   
+%[xpth,~,~] = fileparts(xlsname);
 fname = fullfile(xpth,[nam ext]);
 if exist(fname, 'file'), return; end;
 fname = fullfile(xpth,[nam '.mat']);
 if exist(fname, 'file'), return; end;
 %next check for nii file:
-fname = findNiiFileSub(fnameIn, xlsname);
+fname = findNiiFileSub(fnameIn, xpth);
 if exist(fname, 'file'), return; end;
 fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
 fname = '';

@@ -17,20 +17,24 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 %Examples
 % NiiStat %use graphical interface
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
+%test
+
+fprintf('Version 20 September 2016 of %s %s %s\n', mfilename, computer, version);
+ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
+if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
-fprintf('Version 30 June 2016 of %s %s %s\n', mfilename, computer, version);
+
+if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
+if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"'); end;
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
    if isequal(file,0), return; end;
    xlsname=[pth file];
 end
 if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to report version and quit
-if exist('spm','file') ~= 2
-    error('%s requires SPM to be installed', mfilename);
-end
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
@@ -69,7 +73,7 @@ end
 if ~exist('doSVM','var')
     doSVM = false;
 end
-doVoxReduce = false;
+doVoxReduce = true;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
@@ -78,7 +82,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -94,7 +98,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
       def = {'0','0.05','2','3','1','',''};
     end
     if designUsesNiiImages
-        def{4} = 'UNUSED (design file specifies voxelwise images)';,
+        def{4} = 'UNUSED (design file specifies voxelwise images)';
         def{5} = 'UNUSED (design file specifies voxelwise images)';
 
     end
@@ -142,6 +146,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
+    hemiKey = 0;
+    if any(special == 10)
+        hemiKey = 1;
+    elseif any(special == 11)
+        hemiKey = 2;
+    end
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -152,8 +162,12 @@ for i = 1: length(modalityIndices) %for each modality
     modalityIndex = modalityIndices(i);
     for j = 1: length(roiIndices)
         roiIndex = roiIndices(j);
-        fprintf('Analyzing roi=%d, modality=%d, permute=%d, design=%s\n',roiIndex, modalityIndex,numPermute, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname);
+        specialStr = '';
+        if ~isempty(special)
+           specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] ']; 
+        end
+        fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname); %%GY
     end
 end
 %end nii_stat_mat()
@@ -227,13 +241,13 @@ nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, statname)
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
 [kModalities, ~] = nii_modality_list();
 if (modalityIndex > size(kModalities,1)) || (modalityIndex < 1)
-    fprintf('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
+    error('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
     return;
 end
 if roiIndex < 0
@@ -248,6 +262,9 @@ end
 if strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
     kAnalyzeCorrelationNotMean = true;
 end
+if strcmpi('rest',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
+    kAnalyzeCorrelationNotMean = true;
+end
 if kAnalyzeCorrelationNotMean
    fprintf('analysis of connectivity between regions rather than mean intensity\n');
 end
@@ -255,7 +272,7 @@ if roiIndex == 0 %voxelwise lesion analysis
    ROIfield = deblank(kModalities(modalityIndex,:));
 else
     if doVoxReduce
-        fprintf('doVoxReduce disabled: only for voxelwise analyses only\n');
+        %fprintf('doVoxReduce disabled: only for voxelwise analyses\n');
         doVoxReduce = false;
     end
     if doTFCE
@@ -296,6 +313,7 @@ end
 %for large voxel datasets - first pass to find voxels that vary
 voxMask = [];
 %if false
+matVer = inf;
 if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 10) && (doTFCE ~= 1)) %voxelwise, large study
     fprintf('Generating voxel mask for large voxelwise statistics\n');
     idx = 0;
@@ -307,6 +325,7 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
             error('Please use nii_nii2mat before conducting a large voxelwise statistics');
         elseif (exist (in_filename, 'file'))
             dat = load (in_filename);
+            matVer = matVerSub(dat, matVer);
             if  issubfieldSub(dat,subfield)
                 hdr = dat.(ROIfield).hdr;
                 img = dat.(ROIfield).dat;
@@ -375,6 +394,7 @@ for i = 1:size(matnames,1)
         else
             %dat = load (in_filename, subfield);
             dat = load (in_filename);
+            matVer = matVerSub(dat, matVer);
             [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat, subfield);
             %if  issubfieldSub(dat,'lesion.dat')
             %	fprintf ('Volume\t%g\tfor\t%s\n',sum(dat.lesion.dat(:)), in_filename);
@@ -427,7 +447,7 @@ for i = 1:size(matnames,1)
         fprintf('Unable to find file %s\n', in_filename);
     end
 end
-
+matVerCheckSub(matVer);
 clear('dat'); %these files tend to be large, so lets explicitly free memory
 n_subj = idx;
 if n_subj < 3
@@ -522,6 +542,7 @@ if roiIndex == 0 %voxelwise lesion analysis
         %fprintf('%d/%d= %d\n',i,n_subj, numel(subj_data{i}.(ROIfield).dat(:)));
 
         les(i, :) = subj_data{i}.(ROIfield).dat(:); %#ok<AGROW>
+        logicalMask = logical (ones (size (les, 2), 1)); %%% added by GY
     end
     nanIndex = isnan(les(:));
     if sum(nanIndex(:)) > 0
@@ -543,11 +564,6 @@ else %if voxelwise else region of interest analysis
         global global_roiMask
         roiMaskI = global_roiMask; %inclusion mask
     end
-    if ~isempty(roiMaskI)
-        les_names = les_names(roiMaskI,:);
-    end
-
-
 
     %find the appropriate ROI
     %[mpth,~,~] = fileparts( deblank (which(mfilename)));
@@ -561,19 +577,53 @@ else %if voxelwise else region of interest analysis
     %provide labels for each region
     %les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
     %next: create labels for each region, add image values
+
+
+    if hemiKey > 0
+        if isempty (roiMaskI)
+            roiMaskI = extract_hemi_idxSub (les_names, hemiKey);
+            customROI = 1;
+        else
+            roiMaskI = intersect (roiMaskI, extract_hemi_idxSub (les_names, hemiKey));
+        end
+    end
+
+
     if kAnalyzeCorrelationNotMean %strcmpi('dti',deblank(kModalities(modalityIndex,:))) %read connectivity triangle
+
+        if GrayMatterConnectivityOnly
+            GM_mask = get_GM_Sub(les_names);
+            GM_idx = find (GM_mask);
+            if isempty (roiMaskI)
+                roiMaskI = GM_idx;
+            else
+                roiMaskI = intersect (roiMaskI, GM_idx);
+            end
+        end
+
+
         labels = les_names;
         for i = 1:n_subj
             %http://stackoverflow.com/questions/13345280/changing-representations-upper-triangular-matrix-and-compact-vector-octave-m
             %extract upper triangle as vector
             A = subj_data{i}.(ROIfield).r;
-            A = shrink_matxCustomSub( A,  roiMaskI);
-            if GrayMatterConnectivityOnly == true
-                [les_names,A] = shrink_matxSub(labels,A);
-                %fprintf('Only analyzing gray matter regions (%d of %d)\n',size(les_names,1),size(labels,1) );
-            end
+            %%% commented out by GY
+            %             A = shrink_matxCustomSub( A,  roiMaskI);
+            %             if GrayMatterConnectivityOnly == true
+            %                 [les_names,A] = shrink_matxSub(labels,A);
+            %                 %fprintf('Only analyzing gray matter regions (%d of %d)\n',size(les_names,1),size(labels,1) );
+            %             end
             B = triu(ones(size(A)),1);
             les(i, :) = A(B==1); %#ok<AGROW>
+            if isempty (roiMaskI)
+                logicalMask = logical (ones (size (les, 2), 1));
+            else
+                C = ones (size (A));
+                to_exclude = setdiff (1:length(labels), roiMaskI);
+                C (to_exclude, :) = 0; C (:, to_exclude) = 0;
+                D = triu (ones (size (C)), 1);
+                logicalMask = logical (C (D == 1));
+            end
             % A=[0 1 2 4; 0 0 3 5; 0 0 0 6; 0 0 0 0];  B = triu(ones(size(A)),1); v =A(B==1); v = 1,2,3,4,5,6
         end
         if GrayMatterConnectivityOnly
@@ -581,15 +631,23 @@ else %if voxelwise else region of interest analysis
         end
     else %not DTI n*n connectivity matrix
         for i = 1:n_subj
+            les(i, :) = subj_data{i}.(ROIfield).mean;
 
-            if ~isempty(roiMaskI)
-                A = subj_data{i}.(ROIfield).mean;
-                les(i, :) = A(roiMaskI); %#ok<AGROW>
-            else
-                les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
-            end
+            %%%% commented out by GY
+            %             if ~isempty(roiMaskI)
+            %                 A = subj_data{i}.(ROIfield).mean;
+            %                 les(i, :) = A(roiMaskI); %#ok<AGROW> %%% NOTE TO GY
+            %             else
+            %                 les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
+            %             end
         end
-
+        %%% added by GY
+        if isempty (roiMaskI)
+            logicalMask = logical (ones (size (les, 2), 1));
+        else
+            logicalMask = logical (zeros (size (les, 2), 1));
+            logicalMask (roiMaskI) = 1;
+        end
     end
 
 end %if voxelwise else roi
@@ -650,7 +708,7 @@ if (reportROIvalues) && (numel(les_names) < 1)
 elseif (reportROIvalues) && (kAnalyzeCorrelationNotMean)
     fprintf('Unable to create a ROI report [correlation matrix analyses]\n');
 elseif reportROIvalues
-    %note this next conditional removes regions with little variability. 
+    %note this next conditional removes regions with little variability.
     %  n.b. this same step is built into nii_stat_core, but we will do it here
     %  so reportROIvalues will match what will be computed
     if (minOverlap > 1) && (numel(les_names) > 0)
@@ -660,10 +718,10 @@ elseif reportROIvalues
                 nOK = nOK + 1;
                 les(:, nOK) = les(:, j);
                 les_names{nOK} = les_names{j};
-            end  
+            end
         end %for j
-        if nOK < 1 
-           error('No regions non-zero in at least %d individuals', minOverlap); 
+        if nOK < 1
+           error('No regions non-zero in at least %d individuals', minOverlap);
         end
         if nOK < numel(les_names)
             fprintf('%d of %d regions non-zero in at least %d individuals\n', nOK, numel(les_names), minOverlap);
@@ -697,6 +755,40 @@ elseif reportROIvalues
     return; %no analysis - just report values
 end
 
+%%%% GY: moved min_overlap selection from nii_stat_core
+%next: identify which voxels/regions should be analyzed
+bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %eliminate voxels/regions with no variability
+if minOverlap > 0  %isBinomialLes
+    bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < minOverlap)); %eliminate voxels/regions with no variability
+end
+%%% the following line added by GY
+logicalMask (bad_idx) = 0;
+
+good_idx = setdiff (1:size(les, 2), bad_idx);
+if length(good_idx) < 1 %no surviving regions/voxels
+    if isBinomialLes
+        error('%s error. no voxels damaged in at least %d participants.',mfilename,minOverlap);
+    else
+        error('%s error: no regions to analyze (voxels are either not-a-number or have no variability).',mfilename);
+    end
+end
+
+% moved here from nii_stat_core by GY
+chDirSub(statname);
+diary ([deblank(statname) '.txt']);
+
+if minOverlap > 0 %isBinomialLes
+    fprintf('Only analyzing voxels non-zero in at least %d individuals.\n',minOverlap);
+end
+
+% the following fprintf's slightly modified by GY
+if size(beh,2) == 1
+    fprintf('**** Analyzing %s with %d participants for behavioral variable %s across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),deblank(beh_names{1}), sum(double(logicalMask)), size(les,2));
+else
+    fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), sum(double(logicalMask)), size(les,2));
+end
+
+
 if sum(isnan(beh(:))) > 0
     for i =1:n_beh
         fprintf('Behavior %d/%d: estimating behaviors one as a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
@@ -709,11 +801,20 @@ if sum(isnan(beh(:))) > 0
             les1(j, :) = les(good_idx(j), :) ;
             %les1(j,1) = beh1(j); %to test analyses
         end
+        
+%         chDirSub(statname);
+%         diary ([deblank(statname) '.txt']);
+%         
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
         else
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
+            %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE, voxMask); % GY
         end
+        
+%         diary off
+%         cd .. %leave the folder created by chDirSub
+        
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
 else
@@ -723,14 +824,19 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
-        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName);
+        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE, voxMask);
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, voxMask);  % GY
     end
 end
+
+% moved here from nii_stat_core by GY
+diary off
+cd .. %leave the folder created by chDirSub
+
 %end processMatSub()
 
-
+% the following function is not used -- GY
 function  mat = shrink_matxCustomSub( mat, roiMaskI)
 %removes columns/rows as specified by the global "roiMask"
 %this next bit allow us to remove ROIs
@@ -743,6 +849,8 @@ mat = smallmat(:,roiMaskI); %remove columns
 %if shrinkLabels == 1, labels = labels(roiMaskI,:); end;
 %end shrink_matxCustomSub()
 
+
+% the following function is not used -- GY
 function [smalllabels, smallmat] = shrink_matxSub(labels, mat)
 %removes columns/rows where label does not end with text '|1'
 %  useful as the labels end with |1, |2, |3 for gray matter, white matter and CSF
@@ -755,13 +863,45 @@ index = ~cellfun('isempty',index);
 if (sum(index(:)) == 0)
     smallmat = mat;
     smalllabels = labels;
-    fprintf(' Analysis will include all regions (this template does not specify white and gray regions)')
+    fprintf(' Analysis will include all regions (this template does not specify white and gray regions)\n') %% GY
     return
 end;
 smallmat = mat(index,:);
 smallmat = smallmat(:,index);
 smalllabels = labels(index,:);
 %end shrink_matxSub()
+
+
+% modified version: return a binary mask of regions
+% where 1 is a GM region, and 0 is WM or CSF -- GY
+function GM_mask = get_GM_Sub(labels)
+% returns
+index = strfind(cellstr(labels),'|1');
+index = ~cellfun('isempty',index);
+if (sum(index(:)) == 0)
+    smalllabels = labels;
+    GM_mask = ones (length(labels), 1);
+    fprintf(' Analysis will include all regions (this template does not specify white and gray regions)\n') %% GY
+    return
+end;
+smalllabels = labels(index,:);
+GM_mask = index;
+%end get_GM_Sub()
+
+% function added by GY: returns indices of left-hemisphere (or
+% right-hemishere) regions
+function hemi_idx = extract_hemi_idxSub (labels, hemiKey)
+if hemiKey == 1
+    hemi_regexp = {'_L$', '-L\|', '_L\|', '_Left\|', 'left\|'};
+elseif hemiKey == 2
+    hemi_regexp = {'_R$', '-R\|', '_R\|', '_Right\|', 'right\|'};
+end
+hemi_idx = [];
+for i = 1:length (hemi_regexp)
+    hemi_idx = [hemi_idx; find(cellfun(@length, regexp (labels, hemi_regexp{i})))];
+end
+%end extract_hemi_idxSub
+
 
 % function [fname] = findMatFileSub(fname, xlsname)
 % %looks for a .mat file that has the root 'fname', which might be in same
@@ -966,12 +1106,14 @@ cd(repoPath);
 if exist('.git','dir') %only check for updates if program was installed with "git clone"
     [s, r] = system('git fetch origin','-echo');
     if strfind(r,'fatal')
-        warning('Unabe to check for updates. Network issue?');
+        warning('Unable to check for updates. Network issue?');
+        cd(prevPath); %CR 8/2016
         return;
     end
     [~, r] = system('git status','-echo');
     if strfind(r,'behind')
         if askToUpdate
+            system('git reset --hard HEAD');
             [~, r] = system('git pull','-echo');
             showRestartMsg
         end
@@ -985,15 +1127,6 @@ cd(prevPath);
 function showRestartMsg
 uiwait(msgbox('The program must be restarted for changes to take effect. Click "OK" to quit the program. You will need to restart it just as you normally would','Restart Program'))
 exit;
-%end showRestartMsg()
-
-function showUnzipMsg(pth)
-fprintf('Go to file: %s\n\nUnzip and enter password',pth);
-uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
-%end showRestartMsg()
-
-function h = showDownloading
-h = msgbox('Downloading matfiles...','Downloading');
 %end showRestartMsg()
 
 function a = askToUpdate
@@ -1010,31 +1143,82 @@ switch choice
 end
 %end askToUpdate()
 
-function a = askToUpdateMatFiles
-% Construct a questdlg
-choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
-	'Auto update', ...
-	'Yes','No','Yes');
-% Handle response
-switch choice
-    case 'Yes'
-        a = true;
-    case 'No'
-        a = false;
-end
-%end askToUpdateMatFiles()
+% function h = showDownloading
+% h = msgbox('Downloading matfiles...','Downloading');
+% %end showRestartMsg()
+% 
+% function showUnzipMsg(pth)
+% fprintf('Go to file: %s\n\nUnzip and enter password',pth);
+% uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
+% %end showRestartMsg()
 
-function checkForMostRecentMatFiles(repoPath)
-repo = 'NiiMatFiles';
-prevPath= pwd;
-if exist(repoPath,'dir')
-    cd(repoPath);
-end
-if askToUpdateMatFiles
-    dlh = showDownloading;
-    pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
-    delete(dlh);
-    showUnzipMsg(pthToFile);
-end
-cd(prevPath);
+% function a = askToUpdateMatFiles
+% % Construct a questdlg
+% choice = questdlg(sprintf('Would you like to download the most recent .mat files? You must also need a password to use the files'), ...
+% 	'Auto update', ...
+% 	'Yes','No','Yes');
+% % Handle response
+% switch choice
+%     case 'Yes'
+%         a = true;
+%     case 'No'
+%         a = false;
+% end
+% %end askToUpdateMatFiles()
 
+% function checkForMostRecentMatFiles(repoPath)
+% repo = 'NiiMatFiles';
+% prevPath= pwd;
+% if exist(repoPath,'dir')
+%     cd(repoPath);
+% end
+% if askToUpdateMatFiles
+%     dlh = showDownloading;
+%     pthToFile = websave(repo,'http://people.cas.sc.edu/rorden/matfiles/current.zip');
+%     delete(dlh);
+%     showUnzipMsg(pthToFile);
+% end
+% cd(prevPath);
+% %checkForMostRecentMatFiles()
+
+function matVer = matVerSub(mat, matVer)
+%return minimum mat.T1.lime across a series of matlab files
+if ~isfield(mat,'T1') || ~isfield(mat.T1,'lime') || (matVer <= mat.T1.lime), return; end;
+matVer = mat.T1.lime;
+%matVerSub()
+
+function matVerCheckSub(matVer)
+if ~isfinite(matVer), return; end;
+url = 'http://people.cas.sc.edu/rorden/matfiles/index.html';
+try
+	str = urlread(url);
+catch
+	warning('Unable to verify lime files: could not connect to connect to %s',url);
+	return;
+end
+key = '<a href="M.';
+pos = strfind(str,key);
+if isempty(pos), return; end;
+str = str((pos(1)+numel(key)):end);
+key = '.dmg"';
+pos = strfind(str,key);
+if isempty(pos), return; end;
+str = str(1:(pos(1)-1));
+vers = str2num(str);
+if isempty(vers), return; end;
+if vers <= matVer, fprintf('Your LIME mat files are up to date\n'); return; end;
+urlupdate = fullfile(fileparts(url), ['M.', str, '.dmg']);
+warning('You have mat files %4.4f, the current version is %4.4f', matVer, vers); 
+fprintf('Go to <a href="%s">%s</a> for mat files %4.4f\n', urlupdate, urlupdate, vers);
+%matVerCheckSub()
+
+% moved from nii_stat_core by GY
+function chDirSub(statname)
+datetime=datestr(now);
+datetime=strrep(datetime,':',''); %Replace colon with underscore
+datetime=strrep(datetime,'-','');%Replace minus sign with underscore
+datetime=strrep(datetime,' ','_');%Replace space with underscore
+newdir = [statname '_' datetime ];
+mkdir(newdir);
+cd(newdir);
+%chDirSub()

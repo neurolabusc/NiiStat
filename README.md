@@ -38,3 +38,17 @@ This GitHub archive contains the latest release. For usage see the [NITRC websit
 
 17Oct2014
  - Uploaded to github
+
+##### Installation
+
+There are two methods to install this software:
+
+ - Press the green "Clone or Download" button on the [GitHub page](https://github.com/neurolabusc/NiiStat). Extract the downloaded zip file. This is the easiest method to install the software
+ - From the command line, type "git clone https://github.com/neurolabusc/NiiStat.git" to create a repository. This requires you to have the git software installed (it comes with OSX and Linux, but will have to be manually installed fore Windows-based PCs). The advantage of this method is that the software will automatically keep up to date.
+
+In either case, you will want to make sure that the "NiiStat" folder that you installed is in your Matlab path.
+
+##### Notes
+
+ - [NiiStat Wiki](https://www.nitrc.org/plugins/mwiki/index.php/niistat:MainPage)
+ - [NiiStat Tutorial](https://www.nitrc.org/plugins/mwiki/index.php/niistat:TutorialPage)

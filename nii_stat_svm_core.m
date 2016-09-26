@@ -1,4 +1,4 @@
-function [acc, z_map, acc_per_class] = nii_stat_svm_core (xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear)
+function [acc, z_map, acc_per_class, p] = nii_stat_svm_core (xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear)
 %compute linear support vector machine for data
 % xlsname   : name of excel or tab delimted text file:
 %            -first row are column names
