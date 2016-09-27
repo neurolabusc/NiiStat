@@ -88,15 +88,12 @@ end
 
 %compute statistics
 les = les (:, good_idx); %squeeze data to only examine critical voxels
-numel(logicalMask)
-if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
-    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
-    voxPos = find(voxMask ~= 0);
-    %numel(voxMask)
-    %numel(voxPos)
-    %numel(logicalMask)
-    good_idx = voxPos(good_idx);
-end
+%The following code is no longer used: already encoded in logicalMask
+%if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+%    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+%    voxPos = find(voxMask ~= 0);
+%    good_idx = voxPos(good_idx);
+%end
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
     sumImg(good_idx(:)) = sum (les, 1);
