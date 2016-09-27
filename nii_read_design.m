@@ -48,11 +48,10 @@ for i=1:size(dMat,2)
     if ~isempty(matname)
         [matname] = findMatFileSub(matname,imgpath, xlsname);
         [~, ~, ext] = fileparts(matname);
-
-        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
             if strcmpi('.mat',ext)
                 numMat = numMat + 1;
-            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
                 numNII = numNII + 1;
             end
             dMat(i).(SNames{1}) = matname;
