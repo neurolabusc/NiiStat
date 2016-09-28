@@ -804,13 +804,8 @@ else
 end
 
 if ~isempty (voxMask)
-    if numel (voxMask) ~= numel (logicalMask)
-        error ('Something is very wrong: voxMask and logicalMask don''t match in size');
-    end
     zero_idx = find (voxMask == 0);
-    logicalMask (zero_idx) = 0;
-    voxMask = [];
-end
+    
 
 
 if sum(isnan(beh(:))) > 0
@@ -833,7 +828,7 @@ if sum(isnan(beh(:))) > 0
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE, voxMask); % GY
         end
         
 %         diary off
@@ -850,7 +845,7 @@ else
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE); 
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, voxMask);  % GY
     end
 end
 
