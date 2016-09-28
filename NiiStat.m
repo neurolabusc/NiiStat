@@ -19,10 +19,12 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 %test
 
-fprintf('Version 20 September 2016 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 28 September 2016 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
+hemiKey = 0;
+statname = '';
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
@@ -38,7 +40,14 @@ if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to rep
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
-[designMat, designUsesNiiImages] = nii_read_design (xlsname);
+[designMat, designUsesNiiImages, minOverlapValFile] = nii_read_design (xlsname);
+if ~exist('minOverlap','var') 
+    if isempty(minOverlapValFile)
+        minOverlap = 0;
+    else
+        minOverlap = minOverlapValFile;
+    end
+end
 [~, xlsname, ~] = fileparts(xlsname);
 if ~exist('regressBehav','var')
    regressBehav = false;
@@ -67,9 +76,6 @@ end
 if ~exist('pThresh','var')
    pThresh = 0.05;
 end
-if ~exist('minOverlap','var')
-   minOverlap = 0;
-end
 if ~exist('doSVM','var')
     doSVM = false;
 end
@@ -97,9 +103,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if numel(def) ~= 7
       def = {'0','0.05','2','3','1','',''};
     end
+    if minOverlap > 0 
+       def{3} = [num2str(minOverlap)];
+    end
     if designUsesNiiImages
-        def{4} = 'UNUSED (design file specifies voxelwise images)';
-        def{5} = 'UNUSED (design file specifies voxelwise images)';
+        def{4} = ['UNUSED (design file specifies ', num2str(numel(designMat)), ' voxelwise images)'];
+        def{5} = def{4};
 
     end
     answer = inputdlg(prompt,dlg_title,num_lines,def);
@@ -146,7 +155,6 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any(special == 9)
         doVoxReduce = true;
     end
-    hemiKey = 0;
     if any(special == 10)
         hemiKey = 1;
     elseif any(special == 11)
@@ -163,7 +171,7 @@ for i = 1: length(modalityIndices) %for each modality
     for j = 1: length(roiIndices)
         roiIndex = roiIndices(j);
         specialStr = '';
-        if ~isempty(special)
+        if exist('special','var') && ~isempty(special)
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] ']; 
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
@@ -175,7 +183,7 @@ end
 function nii = isNII (filename)
 %returns true if filename is .nii or .hdr file
 [~, ~, ext] = fileparts(filename);
-nii = (strcmpi('.hdr',ext) || strcmpi('.nii',ext));
+nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 %end isNII()
 
 % function [designMat, designUsesNiiImages] = readDesign (xlsname)
@@ -319,40 +327,46 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
     idx = 0;
     for i = 1:size(matnames,1)
         [in_filename] = deblank(matnames(i,:));
+        img = [];
         if isempty(in_filename)
             %warning already generated
         elseif isNII (in_filename)
-            error('Please use nii_nii2mat before conducting a large voxelwise statistics');
+            %error('Please use nii_nii2mat before conducting a large voxelwise statistics');
+            %hdr = spm_vol (in_filename);
+            %img = spm_read_vols (hdr);
+            [hdr, img] = read_volsSub (in_filename);
         elseif (exist (in_filename, 'file'))
             dat = load (in_filename);
             matVer = matVerSub(dat, matVer);
             if  issubfieldSub(dat,subfield)
                 hdr = dat.(ROIfield).hdr;
                 img = dat.(ROIfield).dat;
-                if doVoxReduce
-
-                    [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
-                end
-                %store behavioral and relevant imaging data for ALL relevant valid individuals
-                idx = idx + 1;
-                if idx == 1
-                    voxMask = zeros(size(img));
-                end
-                img(~isfinite(img)) = 0;
-                img(img ~= 0) = 1;
-                if numel(voxMask) ~= numel(img), s = dir(in_filename); error('Unexpected image dimensions vary %s %d', in_filename, s.bytes); end;
-                voxMask  = voxMask + img;
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
-            end
-
+            end 
         end
+        if ~isempty(img)    
+            if doVoxReduce
+
+                [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
+            end
+            %store behavioral and relevant imaging data for ALL relevant valid individuals
+            idx = idx + 1;
+            if idx == 1
+                voxMask = zeros(size(img));
+            end
+            img(~isfinite(img)) = 0;
+            img(img ~= 0) = 1;
+            if numel(voxMask) ~= numel(img), s = dir(in_filename); error('Unexpected image dimensions vary %s %d', in_filename, s.bytes); end;
+            voxMask  = voxMask + img;
+        end;
     end %for each individual
     voxMask(voxMask < minOverlap) = 0;
     voxMask(voxMask > 0) = 1;
     if requireVoxMask
-        mask_hdr = spm_vol (mask_filename);
-        mask_img = spm_read_vols (mask_hdr);
+        %mask_hdr = spm_vol (mask_filename);
+        %mask_img = spm_read_vols (mask_hdr);
+        [mask_hdr, mask_img] = read_volsSub (mask_filename);
         mask_img(isnan(mask_img)) = 0; %exclude voxels that are not a number
         if ~isequal(mask_hdr.mat, hdr.mat) || ~isequal(mask_hdr.dim(1:3), hdr.dim(1:3))
             fprintf('WARNING: mask dimensions differ from data: attempting to reslice (blurring may occur)\n');
@@ -383,8 +397,9 @@ for i = 1:size(matnames,1)
         if isNII (in_filename)
             idx = idx + 1;
             data = [];
-            data.lesion.hdr = spm_vol (in_filename);
-            data.lesion.dat = spm_read_vols (data.lesion.hdr);
+            %data.lesion.hdr = spm_vol (in_filename);
+            %data.lesion.dat = spm_read_vols (data.lesion.hdr);
+            [data.lesion.hdr, data.lesion.dat] = read_volsSub (in_filename);
             if doVoxReduce
                     [data.lesion.hdr, data.lesion.dat] = resliceVolSub(data.lesion.hdr, data.lesion.dat); %#ok<ASGLU>
             end
@@ -788,6 +803,15 @@ else
     fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), sum(double(logicalMask)), size(les,2));
 end
 
+if ~isempty (voxMask)
+    if numel (voxMask) ~= numel (logicalMask)
+        error ('Something is very wrong: voxMask and logicalMask don''t match in size');
+    end
+    zero_idx = find (voxMask == 0);
+    logicalMask (zero_idx) = 0;
+    voxMask = [];
+end
+
 
 if sum(isnan(beh(:))) > 0
     for i =1:n_beh
@@ -809,7 +833,7 @@ if sum(isnan(beh(:))) > 0
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE, voxMask); % GY
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
         end
         
 %         diary off
@@ -826,7 +850,7 @@ else
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, voxMask);  % GY
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE); 
     end
 end
 
@@ -1222,3 +1246,25 @@ newdir = [statname '_' datetime ];
 mkdir(newdir);
 cd(newdir);
 %chDirSub()
+
+
+function [hdr, img] = read_volsSub (fnm)
+[fnm, isGz] = unGzSub (fnm); %convert FSL .nii.gz to .nii
+hdr = spm_vol(fnm); %load header data
+img = spm_read_vols(hdr); %load image data
+if (isGz), delete(fnm); end; %remove .nii if we have .nii.gz
+%end read_volsSub()
+
+function [fnm, isGz] = unGzSub (fnm)
+[pth,nam,ext] = spm_fileparts(fnm);
+isGz = false;
+if strcmpi(ext,'.gz') %.nii.gz
+    fnm = char(gunzip(fnm));
+    isGz = true;
+elseif strcmpi(ext,'.voi') %.voi ->
+    onam = char(gunzip(fnm));
+    fnm = fullfile(pth, [nam '.nii']);
+    movefile(onam,fnm);
+    isGz = true;
+end;
+%end unGzSub()

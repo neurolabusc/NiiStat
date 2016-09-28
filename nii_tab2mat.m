@@ -1,4 +1,4 @@
-function [stat] = nii_tab2mat(tabname, tagname)
+function [stat, CritN] = nii_tab2mat(tabname, tagname)
 %Given a tab-delimited file, returns all columns of row 'tagname', or all rows and columns if 'tagname' not provided 
 % tabname: tab delimited text file with top row of labels and 1st column of tags
 % tagname: desired row, e.g. 'A1', leave empty to return entire matrix
@@ -14,6 +14,8 @@ function [stat] = nii_tab2mat(tabname, tagname)
 %  pat3.mat	10
 %Example
 % behavioralData2MatSub('~/lime/behav.tab','B3'); %returns B3|2.7|Brocas
+
+CritN = [];
 if ~exist('tabname','var')  %file not specified
    [fnm,pth] = uigetfile({'*.txt;*.tab;';'*.*'},'Select tab-delimited text file');
    tabname = [pth, fnm];
@@ -30,6 +32,14 @@ stat = [];
 fid = fopen(tabname);
 while(1) %skip lines that begin with # (comments)
     hdrline = fgetl(fid); % Get second row (first row of data)
+    key = '#CritPct';
+    if strncmpi(hdrline,key,numel(key))
+        parts = regexp(hdrline,'\t','split');
+        if numel(parts) > 1
+            CritPct = str2num(parts{2}); %#ok<ST2NM>
+        end
+    end
+
     if(length(hdrline)==1) && (hdrline==-1) % Reached end of file, terminate
         fprintf('%s: file does not appear to be in val format %s\n', mfilename,valname);
         break
@@ -79,6 +89,10 @@ while(1)
     end
 end
 fclose(fid);
+if exist('CritPct','var')
+    CritN = round(CritPct/100 * outrow);
+end
+
 %end nii_tab2mat()
 
 %%%%  subfunctions follow

@@ -6,9 +6,15 @@ This GitHub archive contains the latest release. For usage see the [NITRC websit
 
 ##### Versions
 
+<<<<<<< HEAD
 
 20September2016 :
  - Saves node/edge map for connectome analyses (DTI/Rest, GLM/SVM)
+=======
+28September2016 :
+ - Saves node/edge map for connectome analyses (DTI/Rest, GLM/SVM)
+ - Supports most NPM val files directly, unifies logical mask code
+>>>>>>> Development
 
 30June2016 :
  - Main program name changed from "nii_stat" to "NiiStat" to match NITRC

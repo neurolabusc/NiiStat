@@ -1,5 +1,5 @@
 %function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, voxMask)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -88,11 +88,12 @@ end
 
 %compute statistics
 les = les (:, good_idx); %squeeze data to only examine critical voxels
-if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
-    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
-    voxPos = find(voxMask ~= 0);
-    good_idx = voxPos(good_idx);
-end
+%The following code is no longer used: already encoded in logicalMask
+%if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+%    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+%    voxPos = find(voxMask ~= 0);
+%    good_idx = voxPos(good_idx);
+%end
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
     sumImg(good_idx(:)) = sum (les, 1);

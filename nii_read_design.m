@@ -1,5 +1,6 @@
-function [designMat, designUsesNiiImages] = nii_read_design (xlsname, worksheetname)
+function [designMat, designUsesNiiImages, CritN] = nii_read_design (xlsname, worksheetname)
 designUsesNiiImages = false;
+CritN = [];
 if exist(xlsname,'file') ~= 2
     fprintf('%s Unable to find file named "%s"\n',mfilename, xlsname);
     return
@@ -9,7 +10,7 @@ if ~exist('worksheetname','var')
 end
 [~,~,x] = fileparts(xlsname);
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    dMat = nii_tab2mat(xlsname);
+    [dMat, CritN] = nii_tab2mat(xlsname);
 else
     dMat = nii_xls2mat(xlsname , worksheetname,'', true);
     if isempty(dMat)
@@ -48,11 +49,10 @@ for i=1:size(dMat,2)
     if ~isempty(matname)
         [matname] = findMatFileSub(matname,imgpath, xlsname);
         [~, ~, ext] = fileparts(matname);
-
-        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
             if strcmpi('.mat',ext)
                 numMat = numMat + 1;
-            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
                 numNII = numNII + 1;
             end
             dMat(i).(SNames{1}) = matname;
