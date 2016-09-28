@@ -40,7 +40,14 @@ if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to rep
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
-[designMat, designUsesNiiImages] = nii_read_design (xlsname);
+[designMat, designUsesNiiImages, minOverlapValFile] = nii_read_design (xlsname);
+if ~exist('minOverlap','var') 
+    if isempty(minOverlapValFile)
+        minOverlap = 0;
+    else
+        minOverlap = minOverlapValFile;
+    end
+end
 [~, xlsname, ~] = fileparts(xlsname);
 if ~exist('regressBehav','var')
    regressBehav = false;
@@ -69,9 +76,6 @@ end
 if ~exist('pThresh','var')
    pThresh = 0.05;
 end
-if ~exist('minOverlap','var')
-   minOverlap = 0;
-end
 if ~exist('doSVM','var')
     doSVM = false;
 end
@@ -98,6 +102,9 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     end;
     if numel(def) ~= 7
       def = {'0','0.05','2','3','1','',''};
+    end
+    if minOverlap > 0 
+       def{3} = [num2str(minOverlap)];
     end
     if designUsesNiiImages
         def{4} = ['UNUSED (design file specifies ', num2str(numel(designMat)), ' voxelwise images)'];
