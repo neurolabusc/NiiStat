@@ -6,7 +6,7 @@ This GitHub archive contains the latest release. For usage see the [NITRC websit
 
 ##### Versions
 
-28September2016 :
+3October2016 :
  - Saves node/edge map for connectome analyses (DTI/Rest, GLM/SVM)
  - Supports most NPM val files directly, unifies logical mask code
 
