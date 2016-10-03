@@ -155,6 +155,7 @@ elseif isBinomialBehav && isBinomialLes %binomial data
     end;
 else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
+    
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
     end;
@@ -590,6 +591,7 @@ function [uncZ, threshMin, threshMax] = glm_permSub(Y, X, nPerms, kPcrit, good_i
 % glm_t([1 1 0 0 0 1; 0 0 1 1 1 0]',[1 2 3 4 5 6]') %pooled variance t-test
 %
 %inspired by Ged Ridgway's glm_perm_flz
+% save('glm_permSub'); %<-troublshoot, e.g. load('glm_permSub.mat'); glm_perm(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
 if ~exist('nPerms','var')
     nPerms = 0;
 end
@@ -608,6 +610,10 @@ pXX = pinv(X)*pinv(X)'; % = pinv(X'*X), which is reusable, because
 pX  = pXX * X';         % pinv(P*X) = pinv(X'*P'*P*X)*X'*P' = pXX * (P*X)'
 % Original design (identity permutation)
 t = glm_quick_t(Y, X, pXX, pX, df, c);
+if any(~isfinite(t(:)))
+    warning('glm_permSub zeroed NaN t-scores'); %CR 3Oct2016
+    t(~isfinite(t))= 0; %CR patch
+end
 uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 if nPerms < 2
     threshMin = -Inf;

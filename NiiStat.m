@@ -19,7 +19,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 %test
 
-fprintf('Version 28 September 2016 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 3 October 2016 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
@@ -41,7 +41,7 @@ if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
 [designMat, designUsesNiiImages, minOverlapValFile] = nii_read_design (xlsname);
-if ~exist('minOverlap','var') 
+if ~exist('minOverlap','var')
     if isempty(minOverlapValFile)
         minOverlap = 0;
     else
@@ -103,7 +103,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if numel(def) ~= 7
       def = {'0','0.05','2','3','1','',''};
     end
-    if minOverlap > 0 
+    if minOverlap > 0
        def{3} = [num2str(minOverlap)];
     end
     if designUsesNiiImages
@@ -172,7 +172,7 @@ for i = 1: length(modalityIndices) %for each modality
         roiIndex = roiIndices(j);
         specialStr = '';
         if exist('special','var') && ~isempty(special)
-           specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] ']; 
+           specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
         processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname); %%GY
@@ -343,9 +343,9 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
                 img = dat.(ROIfield).dat;
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
-            end 
+            end
         end
-        if ~isempty(img)    
+        if ~isempty(img)
             if doVoxReduce
 
                 [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
@@ -814,8 +814,8 @@ end
 
 
 if sum(isnan(beh(:))) > 0
-    for i =1:n_beh
-        fprintf('Behavior %d/%d: estimating behaviors one as a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
+    for i = 1 : n_beh
+        fprintf('Behavior %d/%d: estimating behaviors one at a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
         beh_names1 = deblank(beh_names(i));
         beh1 = beh(:,i);
         good_idx = find(~isnan(beh1));
@@ -825,20 +825,27 @@ if sum(isnan(beh(:))) > 0
             les1(j, :) = les(good_idx(j), :) ;
             %les1(j,1) = beh1(j); %to test analyses
         end
-        
-%         chDirSub(statname);
-%         diary ([deblank(statname) '.txt']);
-%         
+        %save(sprintf('nii_stat%d',i)); %<-troublshoot, e.g. load('nii_stat4');  nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
+        logicalMask1 = logicalMask;
+        localMask = var(les1(:,logicalMask)) ~= 0;
+        if minOverlap > 1
+            localMaskMinOverlap = sum(les1(:,logicalMask) ~= 0) > minOverlap;
+            localMask(~localMaskMinOverlap) = false;
+        end
+        if any(localMask == false) %regions that have variability overall do not have variability for this factor
+            idx = find(logicalMask);
+            logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
+        end
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
         end
-        
+
 %         diary off
 %         cd .. %leave the folder created by chDirSub
-        
+
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
 else
@@ -850,7 +857,7 @@ else
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE); 
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
     end
 end
 
@@ -1170,7 +1177,7 @@ end
 % function h = showDownloading
 % h = msgbox('Downloading matfiles...','Downloading');
 % %end showRestartMsg()
-% 
+%
 % function showUnzipMsg(pth)
 % fprintf('Go to file: %s\n\nUnzip and enter password',pth);
 % uiwait(msgbox(sprintf('Go to file: %s\n\nUnzip and enter password',pth),'Unzip files'));
@@ -1232,7 +1239,7 @@ vers = str2num(str);
 if isempty(vers), return; end;
 if vers <= matVer, fprintf('Your LIME mat files are up to date\n'); return; end;
 urlupdate = fullfile(fileparts(url), ['M.', str, '.dmg']);
-warning('You have mat files %4.4f, the current version is %4.4f', matVer, vers); 
+warning('You have mat files %4.4f, the current version is %4.4f', matVer, vers);
 fprintf('Go to <a href="%s">%s</a> for mat files %4.4f\n', urlupdate, urlupdate, vers);
 %matVerCheckSub()
 
