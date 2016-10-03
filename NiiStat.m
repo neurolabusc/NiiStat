@@ -814,8 +814,8 @@ end
 
 
 if sum(isnan(beh(:))) > 0
-    for i =1:n_beh
-        fprintf('Behavior %d/%d: estimating behaviors one as a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
+    for i = 1 : n_beh 
+        fprintf('Behavior %d/%d: estimating behaviors one at a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
         beh_names1 = deblank(beh_names(i));
         beh1 = beh(:,i);
         good_idx = find(~isnan(beh1));
@@ -825,15 +825,18 @@ if sum(isnan(beh(:))) > 0
             les1(j, :) = les(good_idx(j), :) ;
             %les1(j,1) = beh1(j); %to test analyses
         end
-        
-%         chDirSub(statname);
-%         diary ([deblank(statname) '.txt']);
-%         
+        %save(sprintf('nii_stat%d',i)); %<-troublshoot, e.g. load('nii_stat4');  nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
+        logicalMask1 = logicalMask;
+        localMask = var(les1(:,logicalMask)) ~= 0;
+        if any(localMask == false) %regions that have variability overall do not have variability for this factor
+            idx = find(logicalMask);
+            logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
+        end
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
         end
         
 %         diary off
