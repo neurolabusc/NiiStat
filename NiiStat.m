@@ -828,6 +828,10 @@ if sum(isnan(beh(:))) > 0
         %save(sprintf('nii_stat%d',i)); %<-troublshoot, e.g. load('nii_stat4');  nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
         logicalMask1 = logicalMask;
         localMask = var(les1(:,logicalMask)) ~= 0;
+        if minOverlap > 1 
+            localMaskMinOverlap = sum(les1(:,logicalMask) ~= 0) > minOverlap;
+            localMask(~localMaskMinOverlap) = false;
+        end
         if any(localMask == false) %regions that have variability overall do not have variability for this factor
             idx = find(logicalMask);
             logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
