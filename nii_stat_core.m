@@ -80,14 +80,17 @@ end
 
 %%% GY: select good ROIs/voxels here
 numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
+
 good_idx = find (logicalMask);
 %added by GY
 if isempty (good_idx)
     error ('No ROIs or voxels pass selection criteria. Exiting...');
 end
-
+if size(les,2) == numel(logicalMask) %CR addded this conditional
+    les = les (:, good_idx); %squeeze data to only examine critical voxels
+end
+    
 %compute statistics
-les = les (:, good_idx); %squeeze data to only examine critical voxels
 %The following code is no longer used: already encoded in logicalMask
 %if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
 %    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]

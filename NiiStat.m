@@ -347,7 +347,6 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
         end
         if ~isempty(img)
             if doVoxReduce
-
                 [hdr, img] = resliceVolSub(hdr, img); %#ok<ASGLU>
             end
             %store behavioral and relevant imaging data for ALL relevant valid individuals
@@ -403,7 +402,10 @@ for i = 1:size(matnames,1)
             if doVoxReduce
                     [data.lesion.hdr, data.lesion.dat] = resliceVolSub(data.lesion.hdr, data.lesion.dat); %#ok<ASGLU>
             end
-        	data.filename = in_filename;
+            if ~isempty(voxMask)
+                data.lesion.dat = data.lesion.dat(voxMask == 1); %#ok<AGROW>
+            end    
+            data.filename = in_filename;
             data.behav = designMat(i); % <- crucial: we inject behavioral data from Excel file!
             subj_data{idx} = data; %#ok<AGROW>
         else
@@ -544,6 +546,9 @@ roiName = '';
 if roiIndex == 0 %voxelwise lesion analysis
     les_names = [];
     hdr = subj_data{1}.(ROIfield).hdr;
+    if ~isempty (voxMask) %10/16 added by CR
+        logicalMask = logical (ones (numel(voxMask), 1));
+    end
     for i = 1:n_subj
         if (i > 1) && (numel(subj_data{i}.(ROIfield).dat(:)) ~= numel(subj_data{1}.(ROIfield).dat(:)))
             %error('Number of voxels varies between images. Please reslice all images to the same dimensions');
@@ -557,7 +562,10 @@ if roiIndex == 0 %voxelwise lesion analysis
         %fprintf('%d/%d= %d\n',i,n_subj, numel(subj_data{i}.(ROIfield).dat(:)));
 
         les(i, :) = subj_data{i}.(ROIfield).dat(:); %#ok<AGROW>
-        logicalMask = logical (ones (size (les, 2), 1)); %%% added by GY
+        if ~exist('logicalMask','var') || isempty (logicalMask)
+            logicalMask = logical (ones (size (les, 2), 1)); %%% added by GY
+        end %10/16 conditional by CR
+       
     end
     nanIndex = isnan(les(:));
     if sum(nanIndex(:)) > 0
@@ -778,7 +786,6 @@ if minOverlap > 0  %isBinomialLes
 end
 %%% the following line added by GY
 logicalMask (bad_idx) = 0;
-
 good_idx = setdiff (1:size(les, 2), bad_idx);
 if length(good_idx) < 1 %no surviving regions/voxels
     if isBinomialLes
@@ -805,14 +812,12 @@ end
 
 if ~isempty (voxMask)
     if numel (voxMask) ~= numel (logicalMask)
-        error ('Something is very wrong: voxMask and logicalMask don''t match in size');
+        error ('Something is very wrong: voxMask and logicalMask don''t match in size %d ~= %d', numel (voxMask),numel (logicalMask) );
     end
     zero_idx = find (voxMask == 0);
     logicalMask (zero_idx) = 0;
     voxMask = [];
 end
-
-
 if sum(isnan(beh(:))) > 0
     for i = 1 : n_beh
         fprintf('Behavior %d/%d: estimating behaviors one at a time (removing empty cells will lead to faster analyses)\n',i,n_beh);
@@ -826,16 +831,31 @@ if sum(isnan(beh(:))) > 0
             %les1(j,1) = beh1(j); %to test analyses
         end
         %save(sprintf('nii_stat%d',i)); %<-troublshoot, e.g. load('nii_stat4');  nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
-        logicalMask1 = logicalMask;
-        localMask = var(les1(:,logicalMask)) ~= 0;
+        %localMask = var(les1(:,logicalMask)) ~= 0;
+        %localMask = var(les1(:,logicalMask)) ~= 0;
+        localMask = var(les1) ~= 0;
         if minOverlap > 1
-            localMaskMinOverlap = sum(les1(:,logicalMask) ~= 0) > minOverlap;
+            %localMaskMinOverlap = sum(les1(:,logicalMask) ~= 0) > minOverlap;
+            localMaskMinOverlap = sum(les1 ~= 0) > minOverlap;
             localMask(~localMaskMinOverlap) = false;
         end
-        if any(localMask == false) %regions that have variability overall do not have variability for this factor
-            idx = find(logicalMask);
-            logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
+        logicalMask1 = logicalMask;
+        if numel(logicalMask1) == numel(localMask)
+            logicalMask1(~localMask) = 0;
+        elseif sum(logicalMask1) == numel(localMask)  %localMask generated on compressed dataset - expand it
+            les1 = les1 (:, localMask); %squeeze data to only examine critical voxels
+            localMaskExpanded = zeros(size(logicalMask1));
+            localMaskExpanded(find(logicalMask1)) = localMask; %#ok<FNDSB>
+            logicalMask1(~localMaskExpanded) = 0;
+        else
+            error ('Something is very wrong: logicalMask1 and localMask don''t match in size %d (or %d) ~= %d', numel(logicalMask1), sum(logicalMask1), numel(localMask) );
         end
+        
+        %if any(localMask == false) %regions that have variability overall do not have variability for this factor
+        %    idx = find(logicalMask);
+        %    logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
+        %end
+
         if doSVM
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1);
         else

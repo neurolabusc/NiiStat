@@ -5,7 +5,7 @@ function [stat] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
 %  tagname : (optional) this script searches for the row with this text in the first column
 %            if tagname not specified all rows are read
 %  firstColumnText : (optional) if true then 1st column always returned as
-%              string. E.G. '748' will have class=char, not class=double 
+%              string. E.G. '748' will have class=char, not class=double
 % Grigori Yourganov and Chris Rorden, 1/2014 distributed under GNU General Public Licence (version 2).
 %Example
 % s = nii_xls2mat('LIME_12_16_2013.xlsx','Data (2)','1001');
@@ -27,7 +27,7 @@ fprintf(' You will get an error if your Excel file does not have a worksheet nam
 try
     [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
 catch
-    fprintf('Unable to read worksheet "%s" from "%"\n',worksheetname, xlsname);
+    fprintf('Unable to read worksheet "%s" from "%s"\n',worksheetname, xlsname);
     return;
 end;
 %[~, txt, raw] = xlsread (xlsname, 'NiiStat','','basic');
@@ -58,11 +58,11 @@ else
     end
 end
 % get list of tag names from the first row of the Excel file
-header_list = txt (1, :); 
+header_list = txt (1, :);
 for i = 1:length (header_list)
     h = header_list{i}; %header
     if ~isempty(h)
-        h = CleanStrSubDot(h); 
+        h = CleanStrSubDot(h);
         for j = 1: length(subj_idx)
             v = raw{subj_idx(j), i}; %value
             if i == 1 && firstColumnText %first first column to be char
