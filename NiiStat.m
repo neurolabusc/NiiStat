@@ -19,7 +19,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 %test
 
-fprintf('Version 3 October 2016 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 9 October 2016 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
@@ -404,7 +404,7 @@ for i = 1:size(matnames,1)
             end
             if ~isempty(voxMask)
                 data.lesion.dat = data.lesion.dat(voxMask == 1); %#ok<AGROW>
-            end    
+            end
             data.filename = in_filename;
             data.behav = designMat(i); % <- crucial: we inject behavioral data from Excel file!
             subj_data{idx} = data; %#ok<AGROW>
@@ -565,7 +565,7 @@ if roiIndex == 0 %voxelwise lesion analysis
         if ~exist('logicalMask','var') || isempty (logicalMask)
             logicalMask = logical (ones (size (les, 2), 1)); %%% added by GY
         end %10/16 conditional by CR
-       
+
     end
     nanIndex = isnan(les(:));
     if sum(nanIndex(:)) > 0
@@ -850,7 +850,7 @@ if sum(isnan(beh(:))) > 0
         else
             error ('Something is very wrong: logicalMask1 and localMask don''t match in size %d (or %d) ~= %d', numel(logicalMask1), sum(logicalMask1), numel(localMask) );
         end
-        
+
         %if any(localMask == false) %regions that have variability overall do not have variability for this factor
         %    idx = find(logicalMask);
         %    logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
