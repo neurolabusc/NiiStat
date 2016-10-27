@@ -6,7 +6,7 @@ function nii_xl2roi (fnm, sheetname)
 % nii_xl2roi %use GUI
 % nii_xl2roi('components.xlsx');
 % nii_xl2roi('components.xlsx', 'dti');
-%Example worksheet (fill in a few JHU regions)
+%Example worksheet
 %   21|RG_L|gyrus rectus left|1 8   11
 %   22|RG_R|gyrus rectus right|1    6   5
 %   31|AG_L|angular gyrus left|1    4   2
