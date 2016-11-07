@@ -110,6 +110,7 @@ if nuSVR
 else
     cmd = [cmd ' -s 3'];
 end
+cmd = [cmd ' -c 0.01']; % added by GY 
 for subj = 1:n_subj
     train_idx = setdiff (1:n_subj, subj);
     train_data = data (train_idx, :);

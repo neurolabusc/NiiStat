@@ -142,16 +142,16 @@ for split = 1:n_splits
     train_labels = class_labels (train_idx)';  
    	if verbose
         if islinear
-            model = svmtrain (train_labels', train_data', '-t 0');
+            model = svmtrain (train_labels', train_data', '-t 0 -c 0.01');
         else
-            model = svmtrain (train_labels', train_data', '-t 2');
+            model = svmtrain (train_labels', train_data', '-t 2 -c 0.01');
         end
         [assignments, ~, ~] = svmpredict (test_labels', test_data', model);
     else %if verbose else silent
         if islinear
-           [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 0'')'); %-t 0 = linear
+           [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 0 -c 0.01'')'); %-t 0 = linear
         else
-            [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 2'')'); %-t 2 = RBF
+            [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 2 -c 0.01'')'); %-t 2 = RBF
         end
         %[~, model] = evalc ('svmtrain (train_labels'', train_data'')');
         [~, assignments, ~, ~] = evalc ('svmpredict (test_labels'', test_data'', model)');
