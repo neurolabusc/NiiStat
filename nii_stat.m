@@ -71,7 +71,7 @@ end
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
-    prompt = {'Number of permutations (-1 for FDR, 0 for Bonferroni, large number for permute (3000), very small number for FreedmanLane(-3000):','Corrected P theshold:',...
+    prompt = {'Number of permutations (-1 for FDR/BF, 0 for Bonferroni, large number for permute (3000), very small number for FreedmanLane(-3000):','Corrected P theshold:',...
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],... 
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
@@ -611,7 +611,7 @@ if sum(isnan(beh(:))) > 0
         if doSVM
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName);
         else
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
+            nii_stat_core2(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
         end
         %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
@@ -624,7 +624,7 @@ else
     if doSVM    
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE, voxMask);
+        nii_stat_core2(les, beh, beh_names,hdr, pThresh, numPermute, minOverlap,statname, les_names, hdrTFCE, voxMask);
     end
 end
 %end processMatSub()
