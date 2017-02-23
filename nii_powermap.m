@@ -33,5 +33,6 @@ for v=1 : numel(img)
         img(v) = spm_invNcdf( 1/nchoosek(nSubj, img(v)) );
     end
 end
+img = abs(img);
 hdr.fname = fullfile(pth, ['powermap_' nam ext]);  
 spm_write_vol(hdr,img);
