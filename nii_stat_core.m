@@ -165,7 +165,7 @@ else %behavior and/or lesions is continuous
 end
 global global_powerMap %option to save parameters for power analysis
 if ~isempty(global_powerMap) && global_powerMap
-    savePowerSub(les,beh(:,i),good_idx, hdr);
+    savePowerSub(les,beh(:,i),good_idx, hdr, roi_names);
 end
 %next: report thresholds
 if (kNumRandPerm == -1) || (kNumRandPerm == -2) %report thresholds using FDR correction
@@ -662,12 +662,13 @@ threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
 
-function savePowerSub(les, beh ,good_idx, hdr)
+function savePowerSub(les, beh ,good_idx, hdr, roi_names)
 %save components required for a power analysis
 m.les = les;
 m.beh = beh;
 m.good_idx = good_idx;
 m.hdr = hdr;
+m.roi_names = roi_names;
 save('power.mat', '-struct', 'm');
 %end savePowerSub()
 
