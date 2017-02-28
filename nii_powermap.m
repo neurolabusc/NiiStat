@@ -8,6 +8,8 @@ function nii_powermap (fname, nSubj)
 %Examples
 %   nii_powermap; %GUI
 %   nii_powermap('41sum.nii', 41);
+
+warning('Obsolete: please use nii_power');
 if ~exist('fname','var') %no image
     fname = spm_select(1,'image','Select sum image');
     [pth,nam,ext] = spm_fileparts( fname);
@@ -34,5 +36,5 @@ for v=1 : numel(img)
     end
 end
 img = abs(img);
-hdr.fname = fullfile(pth, ['powermap_' nam ext]);  
+hdr.fname = fullfile(pth, ['powermap_' nam ext]);
 spm_write_vol(hdr,img);
