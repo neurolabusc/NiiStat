@@ -6,7 +6,7 @@ function nii_power(fnm, zCrit, pPower, flipR)
 % pPower : 0..1 Probability of rejecting the null hypothesis (1-Beta)
 %Note
 % To create a power.mat file type the following in the Matlab command line
-% BEFORE running NiiStat
+% BEFORE running NiiStat, type in command line:
 %   global global_powerMap; global_powerMap = true;
 % Then run 
 %   NiiStat
