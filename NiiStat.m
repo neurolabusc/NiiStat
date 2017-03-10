@@ -79,7 +79,7 @@ end
 if ~exist('doSVM','var')
     doSVM = false;
 end
-doVoxReduce = true;
+doVoxReduce = false;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndices','var') %have user manually specify settings
