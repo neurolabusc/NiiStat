@@ -1170,7 +1170,7 @@ if exist('.git','dir') %only check for updates if program was installed with "gi
         end
     end
 else %do nothing for now
-    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"',mfilename));
+    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"\n or "!git clone git clone https://github.com/neurolabusc/%s.git"',mfilename,mfilename));
 end
 cd(prevPath);
 %end checkForUpdate()
