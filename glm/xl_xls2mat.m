@@ -1,4 +1,4 @@
-function [stat] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
+function [stat] = xl_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
 %Parses behavioral data from a xls or xlsx format worksheet
 %  xlsname : name of Excel file to open (.xls or .xlsx)
 %  worksheetname : name of relevant sheet (page) in Excel file
@@ -8,8 +8,8 @@ function [stat] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
 %              string. E.G. '748' will have class=char, not class=double
 % Grigori Yourganov and Chris Rorden, 1/2014 distributed under GNU General Public Licence (version 2).
 %Example
-% s = nii_xls2mat('LIME_12_16_2013.xlsx','Data (2)','1001');
-% s = nii_xls2mat('LIMEpf2.xlsx','Data (2)') %read all rows!
+% s = xl_xls2mat('LIME_12_16_2013.xlsx','Data (2)','1001');
+% s = xl_xls2mat('LIMEpf2.xlsx','Data (2)') %read all rows!
 
 stat = [];
 if exist(xlsname,'file') ~= 2
@@ -27,7 +27,7 @@ fprintf(' You will get an error if your Excel file does not have a worksheet nam
 try
     [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
 catch
-    fprintf('Unable to read worksheet "%s" from "%s"\n',worksheetname, xlsname);
+    fprintf('Unable to read worksheet "%s" from "%"\n',worksheetname, xlsname);
     return;
 end;
 %[~, txt, raw] = xlsread (xlsname, 'NiiStat','','basic');

@@ -1,5 +1,6 @@
-function [designMat, designUsesNiiImages] = nii_read_design (xlsname, worksheetname)
+function [designMat, designUsesNiiImages, CritN] = nii_read_design (xlsname, worksheetname)
 designUsesNiiImages = false;
+CritN = [];
 if exist(xlsname,'file') ~= 2
     fprintf('%s Unable to find file named "%s"\n',mfilename, xlsname);
     return
@@ -9,7 +10,7 @@ if ~exist('worksheetname','var')
 end
 [~,~,x] = fileparts(xlsname);
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    dMat = nii_tab2mat(xlsname);
+    [dMat, CritN] = nii_tab2mat(xlsname);
 else
     dMat = nii_xls2mat(xlsname , worksheetname,'', true);
     if isempty(dMat)
@@ -24,7 +25,8 @@ numFields = length (SNames);
 if numFields < 2
     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
 end
-imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
+% imgpath = nii_update_mat (fileparts(which(xlsname))); %use which for full path
+imgpath = fileparts(xlsname);
 numNII = 0; %number of NIfTI files
 numMat = 0; %number of Mat files
 numOK = 0;
@@ -33,7 +35,7 @@ for i=1:size(dMat,2)
     matname = deblank( dMat(i).(SNames{1}));
     isValid = false;
     if numel(SNames) > 1
-        for j = 2:numel(SNames) 
+        for j = 2:numel(SNames)
             b = dMat(i).(SNames{j});
             if ~isempty(b) && isnumeric(b) && isfinite(b)
                 isValid = true;
@@ -47,17 +49,16 @@ for i=1:size(dMat,2)
     if ~isempty(matname)
         [matname] = findMatFileSub(matname,imgpath, xlsname);
         [~, ~, ext] = fileparts(matname);
-
-        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+        if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
             if strcmpi('.mat',ext)
                 numMat = numMat + 1;
-            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
+            elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext) || strcmpi('.voi',ext)
                 numNII = numNII + 1;
             end
             dMat(i).(SNames{1}) = matname;
             numOK = numOK + 1;
             designMat(numOK) = dMat(i); %#ok<AGROW>
-            
+
         end
     end
 end
@@ -87,7 +88,7 @@ end
 fname = fullfile(pth,[nam '.mat']);
 if exist(fname, 'file'), return; end;
 %next - check folder of Excel file
-%[xpth,~,~] = fileparts(xlsname);   
+%[xpth,~,~] = fileparts(xlsname);
 fname = fullfile(xpth,[nam ext]);
 if exist(fname, 'file'), return; end;
 fname = fullfile(xpth,[nam '.mat']);

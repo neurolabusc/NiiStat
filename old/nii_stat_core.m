@@ -1,5 +1,4 @@
-%function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -10,9 +9,8 @@ function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask
 %                 set to a large value (2000-8000 to find peak derived threshold
 %                 0 = Bonferroni Threshold (very fast, very conservative)
 %                 -1 = False Discovery Rate (fast, different inference, depends on proportion of signal
-%                 set to extreme negative value (e.g. -5000) for
+%                 set to extreme negative value (e.g. -5000) for 
 %               Ged Ridgeway notes you can estimate confidence intervals for peak permutation, e.g. 8000 permutes with p < 0.05 [~, ci] = binofit(0.05*8000, 8000)
-% logicalMask: ROIs/voxels are marked with 1 if they are to be analyzed, and with 0 if they are to be ignored (GY)
 % kOnlyAnalyzeRegionsDamagedInAtleastNSubjects : (optional) only influences binomial imaging data
 %             will only examine voxels where at least this many individuals
 %             have a "1". This limits the number of tests to regions that
@@ -41,13 +39,13 @@ function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask
 numFactors = size(beh,2); %how many behavioral variables are being tested?
 numObs = size(beh,1); %number of observations
 if ~exist('kOnlyAnalyzeRegionsDamagedInAtleastNSubjects','var')
-    kOnlyAnalyzeRegionsDamagedInAtleastNSubjects = 1;
+    kOnlyAnalyzeRegionsDamagedInAtleastNSubjects = 1;    
 end
 if ~exist('kPcrit','var')
-    kPcrit = 0.05;
+    kPcrit = 0.05;    
 end
 if ~exist('kNumRandPerm','var')
-    kNumRandPerm = 0;  %Bonferroni correction
+    kNumRandPerm = 0;  %Bonferroni correction  
 end
 if ~exist('roi_names','var')
     roi_names = '';
@@ -63,40 +61,52 @@ if size(les,1) ~= size(beh,1)
     error('Error: les and beh must have the same number of rows (one image and one set of behavioral data per participant)');
 end
 if numFactors < 1
-   error('There must be at least one behavioral factor (beh)');
+   error('There must be at least one behavioral factor (beh)'); 
 end
 if length(beh_names) ~= numFactors
-   error('There must be one label (beh_names) for each column of behavior (beh)');
+   error('There must be one label (beh_names) for each column of behavior (beh)'); 
 end
 if size(les,1) < 3
-    error('Error: data must have at least 3 rows (observations). Perhaps inputs need to be transposed?');
+    error('Error: data must have at least 3 rows (observations). Perhaps inputs need to be transposed?');    
 end
 [isBinomialBehav, beh] = ifBinomialForce01Sub(beh,true); %is behavioral data binary?
 [isBinomialLes, les] = ifBinomialForce01Sub(les);
 if ((isBinomialLes ||isBinomialBehav) && (numel(hdrTFCE) == 3))
 	fprintf('Both behavior and images must be continuous for TFCE.');
     hdrTFCE = [];
-end
+end 
 
-%%% GY: select good ROIs/voxels here
-numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
-
-good_idx = find (logicalMask);
-%added by GY
-if isempty (good_idx)
-    error ('No ROIs or voxels pass selection criteria. Exiting...');
+%next: identify which voxels/regions should be analyzed
+numROIorVox = size(les,2); %number of regions or voxels, regardless if they are good (have variability) or bad (no variability)
+bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %eliminate voxels/regions with no variability
+if kOnlyAnalyzeRegionsDamagedInAtleastNSubjects > 0  %isBinomialLes
+    bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < kOnlyAnalyzeRegionsDamagedInAtleastNSubjects)); %eliminate voxels/regions with no variability
 end
-if size(les,2) == numel(logicalMask) %CR addded this conditional
-    les = les (:, good_idx); %squeeze data to only examine critical voxels
+good_idx = setdiff (1:size(les, 2), bad_idx);
+if length(good_idx) < 1 %no surviving regions/voxels
+    if isBinomialLes
+        error('%s error. no voxels damaged in at least %d participants.',mfilename,kOnlyAnalyzeRegionsDamagedInAtleastNSubjects);
+    else
+        error('%s error: no regions to analyze (voxels are either not-a-number or have no variability).',mfilename);
+    end
 end
-    
+chDirSub(statname);
+diary ([deblank(statname) '.txt']);
+if kOnlyAnalyzeRegionsDamagedInAtleastNSubjects > 0 %isBinomialLes
+    fprintf('Only analyzing voxels non-zero in at least %d individuals.\n',kOnlyAnalyzeRegionsDamagedInAtleastNSubjects);
+end
+if size(beh,2) == 1
+    fprintf('**** Analyzing %s with %d participants for behavioral variable %s across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),deblank(beh_names{1}), length(good_idx), size(les,2));
+else
+    fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), length(good_idx), size(les,2));
+end
 %compute statistics
-%The following code is no longer used: already encoded in logicalMask
-%if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
-%    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
-%    voxPos = find(voxMask ~= 0);
-%    good_idx = voxPos(good_idx);
-%end
+les = les (:, good_idx); %squeeze data to only examine critical voxels
+if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+    voxPos = find(voxMask ~= 0);
+    good_idx = voxPos(good_idx);
+end
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
     sumImg(good_idx(:)) = sum (les, 1);
@@ -114,21 +124,21 @@ threshMin = threshMax;  %pre-allocate statistical threhsold
 startTime = tic;
 if (kNumRandPerm < -500) ||  (kNumRandPerm > 0) %if will estimate thresholds with permutation
     rand ('seed', 6666);  %#ok<RAND> %for newer versions: rng(6666); set random number seed - call this to ensure precise permutations between runs
-    %fprintf('NOTE: random number generator seed specified. Multiple runs will generate identical values.\n');
-end
+    %fprintf('NOTE: random number generator seed specified. Multiple runs will generate identical values.\n'); 
+end    
 if (kNumRandPerm < -1) && (size(beh,2) <= 1) %special case: nuisance regressors which requires multiple behaviors
     error('Error: only one behavioral variable provided: unable to control for nuisance regressors (solution: either provide more behavioral data or specify positive number of permutations');
 elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regressors.
     X1 = [beh, ones(numObs,1)];%add constant column for intercept
     global global_flContrast
-    if isempty(global_flContrast)
+    if isempty(global_flContrast) 
         fprintf('Computing regression with nuisance variables for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
         for i = 1: numFactors
             contrasts = zeros(numFactors+1,1); %+1 since last column is constant intercept
             contrasts(i) = 1;
             [z(:,i), threshMin(i), threshMax(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE);
         end;
-    else
+    else 
         fprintf('Computing freedman-lane regression with custom contrast for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
         contrasts = zeros(numFactors+1,1); %+1 since last column is constant intercept
         contrasts(1:length(global_flContrast)) = global_flContrast;
@@ -150,7 +160,7 @@ elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regresso
         beh_names = [];
         beh_names{1} = ['CustomContrast_' s];
     end;
-
+    
 elseif isBinomialBehav && isBinomialLes %binomial data
     fprintf('Computing Liebermeister measures for %d regions/voxels with %d behavioral variables(positive Z when 0 voxels have behavior 0 and 1 voxels have behavior 1).\n',length(good_idx),size(beh,2));
     for i = 1: size(beh,2)
@@ -158,23 +168,18 @@ elseif isBinomialBehav && isBinomialLes %binomial data
     end;
 else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
-    
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
     end;
 end
-%global global_powerMap %option to save parameters for power analysis
-%if ~isempty(global_powerMap) && global_powerMap
-    savePowerSub(les,beh(:,i),good_idx, hdr, roi_names, beh_names);
-%end
 %next: report thresholds
 if (kNumRandPerm == -1) || (kNumRandPerm == -2) %report thresholds using FDR correction
     for i = 1:numFactors
         p2z = @(p) -sqrt(2) * erfcinv(p*2);
-        p = spm_Ncdf(z(:,i));
+        p = spm_Ncdf(z(:,i)); 
         [~, crit_p, ~]=fdr_bh(p,kPcrit,'dep');
         threshMin(i) = p2z(crit_p);
-        p = spm_Ncdf(1-z(:,i)); %convert z-scores to probabilities
+        p = spm_Ncdf(1-z(:,i)); %convert z-scores to probabilities 
         [~, crit_p, ~]=fdr_bh(p,kPcrit,'dep');
         threshMax(i) = -p2z(crit_p);
         fprintf('q=%.4f FDR correction for %s with %d tests is z<%.8f, z>%.8f\n',kPcrit,deblank(beh_names{i}),length(good_idx),threshMin(i),threshMax(i));
@@ -189,27 +194,35 @@ elseif kNumRandPerm == 0 %report thresholds using bonferroni correction
     threshMax(:) = bonferroniZ;
 else %threshold using pre-computed permutations
     fprintf('%d permutations required %.4f seconds\n',abs(kNumRandPerm),toc(startTime)); %/3600 for hours
-    fprintf('Thresholds are one tailed (we predict injured tissue will only cause poorer performance not better performance\n');
+    fprintf('Thresholds are one tailed (we predict injured tissue will only cause poorer performance not better performance\n');    
     for i = 1:numFactors
         fprintf('p<%.3f permutation correction for %s is z<%.5f z>%.5f\n',kPcrit,deblank(beh_names{i}),threshMin(i), threshMax(i));
     end;
 end %else report permutation thresholds
 %next: report results
 if isempty(roi_names) %voxelwise
-	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask);
+	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask); 
 elseif numROIorVox ~= size(roi_names,1)
-    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname, logicalMask);
-else %if not voxelwise or matrix: must be region of interest analysis
+    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,statname);
+else %if voxelwise, else region of interest analysis
 	reportResultsROI(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,hdr,statname);
 end
-%diary off
-%cd .. %leave the folder created by chDirSub
+diary off
+cd .. %leave the folder created by chDirSub
 %end nii_stat_core()
 
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
+function chDirSub(statname)
+datetime=datestr(now);
+datetime=strrep(datetime,':',''); %Replace colon with underscore
+datetime=strrep(datetime,'-','');%Replace minus sign with underscore
+datetime=strrep(datetime,' ','_');%Replace space with underscore
+newdir = [statname '_' datetime ];
+mkdir(newdir);
+cd(newdir);
+%chDirSub()
 
-
-function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname, logicalMask)
+function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,statname)
 %handshake problem, http://en.wikipedia.org/wiki/Triangular_number http://math.fau.edu/richman/mla/triangle.htm
 nLabel = size(roi_names,1);
 nTri = nLabel*(nLabel-1)*0.5;
@@ -219,72 +232,36 @@ end
 %reflect from triangle matrix to full matrix
 TriBin = triu(ones(nLabel,nLabel), 1);
 Idx = 1:numROIorVox;
-FullMat = zeros(nLabel,nLabel);
+FullMat = zeros(nLabel,nLabel); 
 FullMat(TriBin==1) = Idx;
 stat.label  = roi_names;
-if isempty(hdr) || length(hdr.fname) < 1
-    stat.roiname = '';
-else
-	[~,stat.roiname] = fileparts(hdr.fname);
-end
 for i = 1:length(beh_names)
     disp ('___');
     z_column = z(:, i);
     signif_idx = union(find(z_column(:) < threshMin(i)), find(z_column(:) > threshMax(i)) );
     fprintf('%s z=%f..%f, %d regions survive threshold\n', deblank(beh_names{i}), min(z_column(:)),max(z_column(:)),length (signif_idx) );
-    stat.threshZ = zeros(nLabel,nLabel);
-    stat.threshR = zeros(nLabel,nLabel);
+    stat.threshZ = zeros(nLabel,nLabel); 
     for j = 1:length (signif_idx)
         %area_name = roi_names{good_idx(signif_idx(j))};
         [xRow,yCol] = find(FullMat == good_idx(signif_idx(j)),1) ;
         area_name = [roi_names{xRow} '*' roi_names{yCol}];
         if ~isempty(c)
             C_column = c(:, i);
-            stat.threshR(xRow,yCol) = C_column(signif_idx(j));
-            fprintf ('%s (r = %f) z=%.7f\n', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));
+            fprintf ('%s (r = %f) z=%.7f\n', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));        
         else
-            fprintf ('%s z=%.7f\n', strtrim (area_name), z_column(signif_idx(j)));
+            fprintf ('%s z=%.7f\n', strtrim (area_name), z_column(signif_idx(j)));        
         end
-        stat.threshZ(xRow,yCol) = z_column(signif_idx(j));
+        stat.threshZ(xRow,yCol) = z_column(signif_idx(j)); 
     end
-    %unthresholded data
-    stat.unthreshZ = zeros(nLabel,nLabel);
-    for j = 1:length (z_column)
-        [xRow,yCol] = find(FullMat == good_idx(j),1) ;
-        stat.unthreshZ(xRow,yCol) = z_column(j);
-    end
-    %save data
-    stat.logicalMask = logicalMask;
     matname = sprintf ('%s_%s.mat',statname, deblank(beh_names{i}));
     save(matname,'-struct', 'stat');
-    %save node masks
-    nodzname = sprintf ('%s_%sZ.nodz',statname, deblank(beh_names{i}));
-    nii_save_nodz(stat.roiname, stat.threshZ, nodzname, logicalMask);
-    nodzname = sprintf ('%s_%s_unthreshZ.nodz',statname, deblank(beh_names{i}));
-    nii_save_nodz(stat.roiname, stat.unthreshZ, nodzname, logicalMask); 
-    if ~isempty(c) %if we have correlation values
-        nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
-        nii_save_nodz(stat.roiname, stat.threshR, nodzname, logicalMask);
-    end;
 end
 %end reportResultsMatrix()
-
-% function saveNodzSub(roiname, matvals, nodzname, good_idx) 
-% if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
-% [kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
-% if ROIIndex < 1, return; end; %unable to find ROI
-% str = nii_roi2mm (ROIIndex);
-% fileID = fopen(nodzname,'w');
-% fprintf(fileID, str);
-% fprintf(fileID, '#ENDNODE\n');
-% fclose(fileID);
-% dlmwrite(nodzname,matvals,'delimiter','\t','-append')
-% %saveNodzSub
 
 function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname) %,voxMask)
 for i = 1:length(beh_names) %or size(beh,2)
     thresh_idx = union(find(z(:,i) < threshMin(i)), find(z(:,i) > threshMax(i)) );
-    fprintf('%s z=%f..%f, %d voxels survive threshold\n', deblank(beh_names{i}),min(z(:,i)),max(z(:,i)),length(thresh_idx) );
+    fprintf('%s z=%f..%f, %d voxels survive threshold\n', deblank(beh_names{i}),min(z(:,i)),max(z(:,i)),length(thresh_idx) );    
     if ~isempty(hdr)
         zMask = z(:,i);
         %if isempty(voxMask)
@@ -295,7 +272,7 @@ for i = 1:length(beh_names) %or size(beh,2)
         %end
         %statImg = reshape(statImg, hdr.dim(1), hdr.dim(2), hdr.dim(3));
         %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-        saveStatMapSub(hdr,statImg,[sprintf('Z%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );
+        saveStatMapSub(hdr,statImg,[sprintf('Z%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );   
         if ~isempty(thresh_idx)
             zMask = z(:,i);
             subThresh_idx = setdiff (1:size(zMask, 1), thresh_idx);
@@ -308,7 +285,7 @@ for i = 1:length(beh_names) %or size(beh,2)
             %    statImg = unmaskSub2(zMask, good_idx, voxMask);
             %end
             %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-            saveStatMapSub(hdr,statImg,[sprintf('threshZ%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );
+            saveStatMapSub(hdr,statImg,[sprintf('threshZ%s', statname), deblank(beh_names{i})], threshMin(i),threshMax(i) );     
             if ~isempty(c)
                     cMask = c(:,i);
                     cMask(subThresh_idx) = 0;
@@ -320,7 +297,7 @@ for i = 1:length(beh_names) %or size(beh,2)
                     %    statImg = unmaskSub2(cMask, good_idx, voxMask);
                     %end
                     %statImg = reshape(statImg,hdr.dim(1),hdr.dim(2),hdr.dim(3));
-                    saveStatMapSub(hdr,statImg,['threshC',statname, deblank(beh_names{i})], threshMin(i),threshMax(i) );
+                    saveStatMapSub(hdr,statImg,['threshC',statname, deblank(beh_names{i})], threshMin(i),threshMax(i) );           
             end %if correlations
         end; %if some voxels survive threshold
     end; %if hdr exists
@@ -338,6 +315,8 @@ if size(img(:)) ~= size(sumImg(:))
     fprintf('%s did not create a sum image, dimensions do not match template image %s\n',mfilename,fname);
     return
 end
+
+
 %sumImg = reshape(sumImg,size(img));
 hdr.fname = [deblank(statname) 'sum.nii'];
 hdr.pinfo = [1;0;0];
@@ -359,11 +338,11 @@ for i = 1:length(beh_names)
         area_name = roi_names{good_idx(signif_idx(j))};
         if ~isempty(c)
             C_column = c(:, i);
-            fprintf ('%s (r = %f) z=%.7f\n', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));
-            %msg = sprintf ('%s (r = %f) z=%.7f', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));
+            fprintf ('%s (r = %f) z=%.7f\n', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));        
+            %msg = sprintf ('%s (r = %f) z=%.7f', strtrim (area_name), C_column(signif_idx(j)),z_column(signif_idx(j)));        
         else
-            fprintf ('%s z=%.7f\n', strtrim (area_name), z_column(signif_idx(j)));
-            %msg = sprintf ('%s z=%.7f', strtrim (area_name),z_column(signif_idx(j)));
+            fprintf ('%s z=%.7f\n', strtrim (area_name), z_column(signif_idx(j)));        
+            %msg = sprintf ('%s z=%.7f', strtrim (area_name),z_column(signif_idx(j)));           
         end
         %disp (msg);
     end
@@ -388,10 +367,10 @@ hdrT = hdrC;
 %hdrT.private.intent.code = 'ZSCORE';
 for i = 1:length(beh_names) %disp (beh_names{i});
     %P_column = t (:, i);
-    %signif_idx = find (P_column < thresh(i)); % areas with significant correlation
+    %signif_idx = find (P_column < thresh(i)); % areas with significant correlation   
     %signif_idx = union(find(t(i,:) < threshMin(i)), find(t(i,:) > threshMax(i)) );
     z_column = z(:, i);
-    hdrT.fname = sprintf ('Z%s_%s.nii',statname, deblank(beh_names{i}));
+    hdrT.fname = sprintf ('Z%s_%s.nii',statname, deblank(beh_names{i}));    
     imgOutT = zeros(size(img));
     for j = 1:length (good_idx)
         imgOutT(img == good_idx(j)) = z_column(j);
@@ -399,7 +378,7 @@ for i = 1:length(beh_names) %disp (beh_names{i});
     spm_write_vol(hdrT,imgOutT);
     %see if any voxels survive threshold
     signif_idx = union(find(z_column(:) < threshMin(i)), find(z_column(:) > threshMax(i)) );
-    if ~isempty (signif_idx)
+    if ~isempty (signif_idx)   
         hdrT.fname = sprintf ('threshZ%s_%s.nii',statname, deblank(beh_names{i}));
         imgOutT = zeros(size(img));
         for j = 1:length (signif_idx)
@@ -426,7 +405,7 @@ function [isBinomial, behav] = ifBinomialForce01Sub(behav,warnIfMixed)
 mn = min(behav(:));
 mx = max(behav(:));
 if mn == mx
-   fprintf('Warning: data has no variability. Not useful for analyses.\n');
+   fprintf('Warning: data has no variability. Not useful for analyses.\n'); 
 end
 nMin = sum(behav(:)==mn);
 nMax = sum(behav(:)==mx);
@@ -482,7 +461,7 @@ spm_write_vol(hdr,sumImg);
 % img(good_idx(:)) = old;
 % img = unmaskSub(img, voxMask);
 % %end unmaskSub2()
-%
+% 
 % function img = unmaskSub(img, voxMask) %uncompress packed 1D vector to sparse 3D volume
 % if isempty(voxMask)
 %     return
@@ -514,7 +493,7 @@ spm_write_vol(hdr,statImg);
 
 function [uncZ, threshMin, threshMax] = lieber_permSub(Y, X, nPerms, kPcrit, hdrTFCE)
 %returns uncorrected z-score for all voxels in Y given single column predictor X
-% Y: volume data
+% Y: volume data 
 % X: single column predictor
 % nPerms: Number of permutations to compute
 % kPcrit: Critical threshold
@@ -531,8 +510,8 @@ if ~exist('kPcrit','var')
 end
 if ~exist('hdrTFCE','var')
     hdrTFCE = [];
-end
-if numel(hdrTFCE) == 3
+end 
+if numel(hdrTFCE) == 3    
 	fprintf('WARNING: Liebermeister measure does not support TFCE (yet)\n');
 end
 [n p] = size(X); %rows is number of observations, columns should be 1
@@ -587,16 +566,15 @@ z(indexL) = -z(indexL); %negative correlations have negative Z scores
 
 function [uncZ, threshMin, threshMax] = glm_permSub(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
 %returns uncorrected z-score for all voxels in Y given single column predictor X
-% Y: volume data
+% Y: volume data 
 % X: single column predictor
 %if either X or Y is binomial, results are pooled variance t-test, else correlation coefficient
 % nPerms: Number of permutations to compute
 % kPcrit: Critical threshold
 %Example
 % glm_t([1 1 0 0 0 1; 0 0 1 1 1 0]',[1 2 3 4 5 6]') %pooled variance t-test
-%
+% 
 %inspired by Ged Ridgway's glm_perm_flz
-% save('glm_permSub'); %<-troublshoot, e.g. load('glm_permSub.mat'); glm_perm(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
 if ~exist('nPerms','var')
     nPerms = 0;
 end
@@ -606,7 +584,7 @@ end
 % Basics and reusable components
 [n f] = size(X); %rows=observations, columns=factors
 [nY v] = size(Y); %#ok<NASGU> v is number of tests/voxels
-if (f ~= 1), error('glm_permSub is for one column of X at a time (transpose?)'); end;
+if (f ~= 1), error('glm_permSub is for one column of X at a time (transpose?)'); end; 
 if nY ~= n, error('glm_permSub X and Y data sizes are inconsistent'); end
 X = [X ones(size(X,1),1)];
 c = [1 0]'; %contrast
@@ -615,10 +593,6 @@ pXX = pinv(X)*pinv(X)'; % = pinv(X'*X), which is reusable, because
 pX  = pXX * X';         % pinv(P*X) = pinv(X'*P'*P*X)*X'*P' = pXX * (P*X)'
 % Original design (identity permutation)
 t = glm_quick_t(Y, X, pXX, pX, df, c);
-if any(~isfinite(t(:)))
-    warning('glm_permSub zeroed NaN t-scores'); %CR 3Oct2016
-    t(~isfinite(t))= 0; %CR patch
-end
 uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 if nPerms < 2
     threshMin = -Inf;
@@ -628,7 +602,7 @@ end
 if numel(hdrTFCE) == 3
    img = zeros(hdrTFCE);
    img(good_idx) = t;
-   img = tfceMex(img, 100);
+   img = tfceMex(img, 100); 
    t = img(good_idx);
    uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 end
@@ -650,7 +624,7 @@ for p = 2:nPerms
     if numel(hdrTFCE) == 3
        img = zeros(hdrTFCE);
        img(good_idx) = tp;
-       img = tfceMex(img, 100);
+       img = tfceMex(img, 100); 
        tp = img(good_idx);
     end
     peak(p) = max(tp(:));
@@ -661,17 +635,6 @@ threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
-
-function savePowerSub(les, beh ,good_idx, hdr, roi_names, beh_names)
-%save components required for a power analysis
-m.les = les;
-m.beh = beh;
-m.good_idx = good_idx;
-m.hdr = hdr;
-m.roi_names = roi_names;
-m.beh_names = beh_names;
-save('power.mat', '-struct', 'm');
-%end savePowerSub()
 
 function [uncZ, threshMin, threshMax] = glm_perm_flSub(Y, X, c, nPerms, kPcrit, good_idx, hdrTFCE)
 % [UncZ threshLo threshHi] = glm_perm_fl(Y, X, c, nPerms, pClus)
@@ -719,7 +682,7 @@ end
 if numel(hdrTFCE) == 3
    img = zeros(hdrTFCE);
    img(good_idx) = t;
-   img = tfceMex(img, 100);
+   img = tfceMex(img, 100); 
    t = img(good_idx);
    uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 end
@@ -740,7 +703,7 @@ for p = 2:nPerms
     if numel(hdrTFCE) == 3
        img = zeros(hdrTFCE);
        img(good_idx) = tp;
-       img = tfceMex(img, 100);
+       img = tfceMex(img, 100); 
        tp = img(good_idx);
     end
     peak(p) = max(tp);

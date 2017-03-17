@@ -1,5 +1,5 @@
 %function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, voxMask)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -80,23 +80,16 @@ end
 
 %%% GY: select good ROIs/voxels here
 numROIorVox = size(les,2); %number of regions or voxels, regardless of being analyzed or ignored
-
 good_idx = find (logicalMask);
-%added by GY
-if isempty (good_idx)
-    error ('No ROIs or voxels pass selection criteria. Exiting...');
-end
-if size(les,2) == numel(logicalMask) %CR addded this conditional
-    les = les (:, good_idx); %squeeze data to only examine critical voxels
-end
-    
+
+
 %compute statistics
-%The following code is no longer used: already encoded in logicalMask
-%if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
-%    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
-%    voxPos = find(voxMask ~= 0);
-%    good_idx = voxPos(good_idx);
-%end
+les = les (:, good_idx); %squeeze data to only examine critical voxels
+if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+    voxPos = find(voxMask ~= 0);
+    good_idx = voxPos(good_idx);
+end
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
     sumImg(good_idx(:)) = sum (les, 1);
@@ -158,15 +151,10 @@ elseif isBinomialBehav && isBinomialLes %binomial data
     end;
 else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
-    
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
     end;
 end
-%global global_powerMap %option to save parameters for power analysis
-%if ~isempty(global_powerMap) && global_powerMap
-    savePowerSub(les,beh(:,i),good_idx, hdr, roi_names, beh_names);
-%end
 %next: report thresholds
 if (kNumRandPerm == -1) || (kNumRandPerm == -2) %report thresholds using FDR correction
     for i = 1:numFactors
@@ -198,18 +186,18 @@ end %else report permutation thresholds
 if isempty(roi_names) %voxelwise
 	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask);
 elseif numROIorVox ~= size(roi_names,1)
-    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname, logicalMask);
+    reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname);
 else %if not voxelwise or matrix: must be region of interest analysis
 	reportResultsROI(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,hdr,statname);
 end
-%diary off
-%cd .. %leave the folder created by chDirSub
+diary off
+cd .. %leave the folder created by chDirSub
 %end nii_stat_core()
 
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
 
 
-function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname, logicalMask)
+function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname)
 %handshake problem, http://en.wikipedia.org/wiki/Triangular_number http://math.fau.edu/richman/mla/triangle.htm
 nLabel = size(roi_names,1);
 nTri = nLabel*(nLabel-1)*0.5;
@@ -247,39 +235,26 @@ for i = 1:length(beh_names)
         end
         stat.threshZ(xRow,yCol) = z_column(signif_idx(j));
     end
-    %unthresholded data
-    stat.unthreshZ = zeros(nLabel,nLabel);
-    for j = 1:length (z_column)
-        [xRow,yCol] = find(FullMat == good_idx(j),1) ;
-        stat.unthreshZ(xRow,yCol) = z_column(j);
-    end
-    %save data
-    stat.logicalMask = logicalMask;
     matname = sprintf ('%s_%s.mat',statname, deblank(beh_names{i}));
     save(matname,'-struct', 'stat');
-    %save node masks
     nodzname = sprintf ('%s_%sZ.nodz',statname, deblank(beh_names{i}));
-    nii_save_nodz(stat.roiname, stat.threshZ, nodzname, logicalMask);
-    nodzname = sprintf ('%s_%s_unthreshZ.nodz',statname, deblank(beh_names{i}));
-    nii_save_nodz(stat.roiname, stat.unthreshZ, nodzname, logicalMask); 
-    if ~isempty(c) %if we have correlation values
-        nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
-        nii_save_nodz(stat.roiname, stat.threshR, nodzname, logicalMask);
-    end;
+    saveNodzSub(stat.roiname, stat.threshZ, nodzname);
+    nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
+    saveNodzSub(stat.roiname, stat.threshR, nodzname);    
 end
 %end reportResultsMatrix()
 
-% function saveNodzSub(roiname, matvals, nodzname, good_idx) 
-% if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
-% [kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
-% if ROIIndex < 1, return; end; %unable to find ROI
-% str = nii_roi2mm (ROIIndex);
-% fileID = fopen(nodzname,'w');
-% fprintf(fileID, str);
-% fprintf(fileID, '#ENDNODE\n');
-% fclose(fileID);
-% dlmwrite(nodzname,matvals,'delimiter','\t','-append')
-% %saveNodzSub
+function saveNodzSub(roiname, matvals, nodzname); 
+if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
+[kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
+if ROIIndex < 1, return; end; %unable to find ROI
+str = nii_roi2mm (ROIIndex);
+fileID = fopen(nodzname,'w');
+fprintf(fileID, str);
+fprintf(fileID, '#ENDNODE\n');
+fclose(fileID);
+dlmwrite(nodzname,matvals,'delimiter','\t','-append')
+%saveNodzSub
 
 function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname) %,voxMask)
 for i = 1:length(beh_names) %or size(beh,2)
@@ -338,6 +313,8 @@ if size(img(:)) ~= size(sumImg(:))
     fprintf('%s did not create a sum image, dimensions do not match template image %s\n',mfilename,fname);
     return
 end
+
+
 %sumImg = reshape(sumImg,size(img));
 hdr.fname = [deblank(statname) 'sum.nii'];
 hdr.pinfo = [1;0;0];
@@ -596,7 +573,6 @@ function [uncZ, threshMin, threshMax] = glm_permSub(Y, X, nPerms, kPcrit, good_i
 % glm_t([1 1 0 0 0 1; 0 0 1 1 1 0]',[1 2 3 4 5 6]') %pooled variance t-test
 %
 %inspired by Ged Ridgway's glm_perm_flz
-% save('glm_permSub'); %<-troublshoot, e.g. load('glm_permSub.mat'); glm_perm(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
 if ~exist('nPerms','var')
     nPerms = 0;
 end
@@ -615,10 +591,6 @@ pXX = pinv(X)*pinv(X)'; % = pinv(X'*X), which is reusable, because
 pX  = pXX * X';         % pinv(P*X) = pinv(X'*P'*P*X)*X'*P' = pXX * (P*X)'
 % Original design (identity permutation)
 t = glm_quick_t(Y, X, pXX, pX, df, c);
-if any(~isfinite(t(:)))
-    warning('glm_permSub zeroed NaN t-scores'); %CR 3Oct2016
-    t(~isfinite(t))= 0; %CR patch
-end
 uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 if nPerms < 2
     threshMin = -Inf;
@@ -661,17 +633,6 @@ threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
-
-function savePowerSub(les, beh ,good_idx, hdr, roi_names, beh_names)
-%save components required for a power analysis
-m.les = les;
-m.beh = beh;
-m.good_idx = good_idx;
-m.hdr = hdr;
-m.roi_names = roi_names;
-m.beh_names = beh_names;
-save('power.mat', '-struct', 'm');
-%end savePowerSub()
 
 function [uncZ, threshMin, threshMax] = glm_perm_flSub(Y, X, c, nPerms, kPcrit, good_idx, hdrTFCE)
 % [UncZ threshLo threshHi] = glm_perm_fl(Y, X, c, nPerms, pClus)
