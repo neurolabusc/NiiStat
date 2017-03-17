@@ -29,6 +29,10 @@ for f = 1 : numel(fnames)
     fprintf('%s\t', nam)
     for i = 1: size(modality,1)
         fld = isfield(mat, deblank(modality(i,:)));
+        if ~fld
+            fname = [deblank(modality(i,:)), '_jhu'];
+            fld = isfield(mat, fname);
+        end
         fprintf('%d\t', fld)
     end %for each modality
     fprintf('\n');
