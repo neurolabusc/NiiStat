@@ -24,6 +24,7 @@ ver; %report complete version information, e.g. "Operating System: Mac OS X  Ver
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
 hemiKey = 0;
+interhemi = false; %% added by GY at RD's request
 statname = '';
 repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
@@ -88,7 +89,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only; 12=interhemispheric) [multi OK]',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -160,6 +161,9 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     elseif any(special == 11)
         hemiKey = 2;
     end
+    if any (special == 12)
+        interhemi = true;
+    end
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -175,7 +179,7 @@ for i = 1: length(modalityIndices) %for each modality
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname); %%GY
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname); %%GY
     end
 end
 %end nii_stat_mat()
@@ -249,7 +253,7 @@ nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname) %%GY
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -275,7 +279,9 @@ if strcmpi('rest',deblank(kModalities(modalityIndex,:))) %read connectivity tria
 end
 if kAnalyzeCorrelationNotMean
    fprintf('analysis of connectivity between regions rather than mean intensity\n');
-end
+else
+    interhemi = false; % interhemispheric analysis possible only for connectomes! --GY
+end 
 if roiIndex == 0 %voxelwise lesion analysis
    ROIfield = deblank(kModalities(modalityIndex,:));
 else
@@ -602,7 +608,7 @@ else %if voxelwise else region of interest analysis
     %next: create labels for each region, add image values
 
 
-    if hemiKey > 0
+    if hemiKey > 0 && ~interhemi
         if isempty (roiMaskI)
             roiMaskI = extract_hemi_idxSub (les_names, hemiKey);
             customROI = 1;
@@ -638,14 +644,31 @@ else %if voxelwise else region of interest analysis
             %             end
             B = triu(ones(size(A)),1);
             les(i, :) = A(B==1); %#ok<AGROW>
-            if isempty (roiMaskI)
-                logicalMask = logical (ones (size (les, 2), 1));
-            else
-                C = ones (size (A));
-                to_exclude = setdiff (1:length(labels), roiMaskI);
-                C (to_exclude, :) = 0; C (:, to_exclude) = 0;
+            if interhemi %% added by GY at RD's request
+                C = zeros (size (A));
+                L_idx = extract_hemi_idxSub (les_names, 1);
+                R_idx = extract_hemi_idxSub (les_names, 2);
+                roiMask_L = intersect (roiMaskI, L_idx);
+                roiMask_R = intersect (roiMaskI, R_idx);
+                C (roiMask_L, roiMask_R) = 1;
+                C (roiMask_R, roiMask_L) = 1;
+                if hemiKey == 1
+                    C (roiMask_L, roiMask_L) = 1;
+                elseif hemiKey == 2
+                    C (roiMask_R, roiMask_R) = 1;
+                end
                 D = triu (ones (size (C)), 1);
                 logicalMask = logical (C (D == 1));
+            else
+                if isempty (roiMaskI)
+                    logicalMask = logical (ones (size (les, 2), 1));
+                else
+                    C = ones (size (A));
+                    to_exclude = setdiff (1:length(labels), roiMaskI);
+                    C (to_exclude, :) = 0; C (:, to_exclude) = 0;
+                    D = triu (ones (size (C)), 1);
+                    logicalMask = logical (C (D == 1));
+                end
             end
             % A=[0 1 2 4; 0 0 3 5; 0 0 0 6; 0 0 0 0];  B = triu(ones(size(A)),1); v =A(B==1); v = 1,2,3,4,5,6
         end
@@ -778,12 +801,21 @@ elseif reportROIvalues
     return; %no analysis - just report values
 end
 
+
 %%%% GY: moved min_overlap selection from nii_stat_core
 %next: identify which voxels/regions should be analyzed
 bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %eliminate voxels/regions with no variability
 if minOverlap > 0  %isBinomialLes
     bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < minOverlap)); %eliminate voxels/regions with no variability
 end
+
+% %%% PLEASE DELETE
+% disp ('ZZZZZZHOPA');
+% length (logical_mask)
+% %%%
+
+
+
 %%% the following line added by GY
 logicalMask (bad_idx) = 0;
 good_idx = setdiff (1:size(les, 2), bad_idx);
@@ -927,7 +959,8 @@ smalllabels = labels(index,:);
 % where 1 is a GM region, and 0 is WM or CSF -- GY
 function GM_mask = get_GM_Sub(labels)
 % returns
-index = strfind(cellstr(labels),'|1');
+index = regexp (cellstr (labels), '\|1$'); % --GY
+%index = strfind(cellstr(labels),'|1'); %% commented out by GY
 index = ~cellfun('isempty',index);
 if (sum(index(:)) == 0)
     smalllabels = labels;
