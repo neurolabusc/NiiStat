@@ -1,5 +1,5 @@
 %function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, clusterP)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -21,7 +21,6 @@ function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask
 % statname : (optional) results saved to disk will include this name. If not provided this becomes 'anonymous'
 % roi_names : (optional) if one per column of les, then a labeled table is produced
 % hdrTFCE   : (optional, voxelwise analyses only) - dimensions of volume
-% clusterP : (optional), all permutations thresholded with this initial p-value, only observed cluster larger than kPcrit will survive
 %Examples:
 %     five0five1 = [0 0 0 0 0 1 1 1 1 1]';
 %     ascend1to10 = [1:10]';
@@ -72,24 +71,11 @@ end
 if size(les,1) < 3
     error('Error: data must have at least 3 rows (observations). Perhaps inputs need to be transposed?');
 end
-if ~exist('clusterP','var')
-    clusterP = 0;
-end
-if (clusterP ~= 0) && (abs(kNumRandPerm) < 6)
-   error('Cluster thresholding requires permutation thresholding'); 
-end
 [isBinomialBehav, beh] = ifBinomialForce01Sub(beh,true); %is behavioral data binary?
 [isBinomialLes, les] = ifBinomialForce01Sub(les);
 if ((isBinomialLes ||isBinomialBehav) && (numel(hdrTFCE) == 3))
 	fprintf('Both behavior and images must be continuous for TFCE.');
     hdrTFCE = [];
-end
-
-if (clusterP ~= 0) && (isBinomialBehav) && (isBinomialLes)
-    error('Cluster thresholding not yet supported for binomial behavior'); 
-end
-if (clusterP ~= 0) && (~isBinomialLes)
-   warning('Cluster thresholding not recommended for continuous images (use TFCE)'); 
 end
 
 %%% GY: select good ROIs/voxels here
@@ -105,17 +91,17 @@ if size(les,2) == numel(logicalMask) %CR addded this conditional
 end
     
 %compute statistics
+%The following code is no longer used: already encoded in logicalMask
+%if exist('voxMask','var') && ~isempty(voxMask) %convert good_idx to unpacked voxels
+%    %voxMask = [1 0 1; 0 1 0; 1 0 1]; good_idx = [1 3]; %<- illustrate logic, convert address from [1 3] to [1 5]
+%    voxPos = find(voxMask ~= 0);
+%    good_idx = voxPos(good_idx);
+%end
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
     sumImg(good_idx(:)) = sum (les, 1);
     saveSumMapSub(hdr, sumImg,statname);%, voxMask); %create image showing sum of values
 else
-    if (clusterP ~= 0)
-        error('Cluster thresholding requires voxelwise analyses (not ROI)'); 
-    end
-    if (numel(hdrTFCE) == 3)
-        error('TFCE requires voxelwise analyses (not ROI)'); 
-    end
     sumImg = zeros(numROIorVox,1);
     sumImg(good_idx(:)) = sum (les, 1);
     saveSumMapROI(hdr,sumImg,statname); %create image showing sum of values
@@ -125,8 +111,6 @@ numVox = size(les,2); %number of voxels/regions
 z = zeros(numVox,numFactors); %pre-allocate observed z-scores
 threshMax = zeros(numFactors,1); %pre-allocate statistical threhsold
 threshMin = threshMax;  %pre-allocate statistical threhsold
-threshClusterNeg = threshMax;  %pre-allocate statistical threhsold
-threshClusterPos = threshMax;  %pre-allocate statistical threhsold
 startTime = tic;
 if (kNumRandPerm < -500) ||  (kNumRandPerm > 0) %if will estimate thresholds with permutation
     rand ('seed', 6666);  %#ok<RAND> %for newer versions: rng(6666); set random number seed - call this to ensure precise permutations between runs
@@ -142,7 +126,7 @@ elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regresso
         for i = 1: numFactors
             contrasts = zeros(numFactors+1,1); %+1 since last column is constant intercept
             contrasts(i) = 1;
-            [z(:,i), threshMin(i), threshMax(i), threshClusterNeg(i), threshClusterPos(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE, hdr, clusterP);
+            [z(:,i), threshMin(i), threshMax(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE);
         end;
     else
         fprintf('Computing freedman-lane regression with custom contrast for %d regions/voxels, analyzing %d behavioral variables.\n',length(good_idx),size(beh,2));
@@ -157,7 +141,7 @@ elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regresso
         threshMax = zeros(numFactors,1); %pre-allocate statistical threhsold
         threshMin = threshMax;  %pre-allocate statistical threhsold
         i = 1;
-        [z(:,i), threshMin(i), threshMax(i), threshClusterNeg(i), threshClusterPos(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE, hdr, clusterP);
+        [z(:,i), threshMin(i), threshMax(i)] = glm_perm_flSub(les, X1, contrasts, abs(kNumRandPerm),kPcrit, good_idx, hdrTFCE);
         %give the contrast a meaningful name
         s = mat2str(global_flContrast);
         s = strrep(s, ' ', '_');
@@ -168,7 +152,6 @@ elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regresso
     end;
 
 elseif isBinomialBehav && isBinomialLes %binomial data
-    
     fprintf('Computing Liebermeister measures for %d regions/voxels with %d behavioral variables(positive Z when 0 voxels have behavior 0 and 1 voxels have behavior 1).\n',length(good_idx),size(beh,2));
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i)] = lieber_permSub(les,beh(:,i), kNumRandPerm, kPcrit, hdrTFCE);
@@ -177,7 +160,7 @@ else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
     
     for i = 1: size(beh,2)
-        [z(:,i), threshMin(i), threshMax(i), threshClusterNeg(i), threshClusterPos(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE, hdr, clusterP);
+        [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
     end;
 end
 %global global_powerMap %option to save parameters for power analysis
@@ -213,14 +196,7 @@ else %threshold using pre-computed permutations
 end %else report permutation thresholds
 %next: report results
 if isempty(roi_names) %voxelwise
-	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname, clusterP);%, voxMask);
-    if clusterP ~= 0
-        for i = 1:numFactors
-            
-            clusterReportSub(hdr, z(:,i), good_idx, clusterP, threshClusterNeg(i), threshClusterPos(i), [deblank(statname) deblank(beh_names{i})])
-            %fprintf('p<%.3f permutation correction for %s is z<%.5f z>%.5f\n',kPcrit,deblank(beh_names{i}),threshMin(i), threshMax(i));
-        end;
-    end
+	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname);%, voxMask);
 elseif numROIorVox ~= size(roi_names,1)
     reportResultsMatrix(z,[],threshMin,threshMax,good_idx,beh_names,roi_names,numROIorVox,hdr,statname, logicalMask);
 else %if not voxelwise or matrix: must be region of interest analysis
@@ -232,46 +208,6 @@ end
 
 %%%%% SUBFUNCTIONS FOLLOW %%%%%%%
 
-function clusterReportSub(hdr, uncZ, good_idx, clusterP, threshClusterNeg, threshClusterPos, statName)
-if (clusterP == 0), return; end;
-img = vec2img (uncZ, good_idx, hdr.dim(1:3));
-p2z = @(p) -sqrt(2) * erfcinv(p*2);
-clusterZ = abs(p2z(clusterP));
-clusterSaveSub(hdr, img, clusterZ, threshClusterPos, [statName 'clusterPos']);
-clusterSaveSub(hdr, img, -clusterZ, threshClusterNeg, [statName 'clusterNeg']);
-%clusterSaveSub()
-
-function clusterSaveSub(hdr, img, thresh, minClusterVox, statName)
-%mask images so only voxels that exceed thresh in clusters with at least minClusterVox voxels remain
-if (thresh < 0)
-    cimg = (img <= thresh) * 1.0;
-else
-    cimg = (img >= thresh) * 1.0;
-end;
-[L,nclusters] = spm_bwlabel(cimg,26);
-if (nclusters < 1), fprintf('No cluster-thresholded image will be created: no voxels exceed %g\n', thresh); return; end; %no clusters survive
-nOK = 0; 
-for i = 1:nclusters
-    sz = sum(L(:)==i);
-    if (sz < minClusterVox)
-        L(L==i) = 0;
-    else
-        nOK = nOK + 1;
-    end
-end
-if (nOK < 1), fprintf('No cluster-thresholded image will be created: no clusters >%g with at least %d voxels\n', thresh, minClusterVox); return; end; %no clusters survive
-L(L>0) = 1.0; %binary image: 0 or 1 (masked, survive)
-img = img .* L;
-hdr.fname = [statName '.nii'];
-hdr.pinfo = [1;0;0];
-hdr.private.dat.scl_slope = 1;
-hdr.private.dat.scl_inter = 0;
-hdr.descrip = sprintf('z %.3f, cluster %d voxels', thresh, minClusterVox);
-hdr.private.dat.dtype = 'FLOAT32-LE';%'INT16-LE', 'FLOAT32-LE';
-hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
-fprintf('%d clusters exceed >%g with at least %d voxels %s\n', nOK, thresh, minClusterVox, hdr.fname);
-spm_write_vol(hdr,img);
-%end clusterSub()
 
 function reportResultsMatrix(z,c,threshMin,threshMax,good_idx,beh_names,roi_names, numROIorVox,hdr,statname, logicalMask)
 %handshake problem, http://en.wikipedia.org/wiki/Triangular_number http://math.fau.edu/richman/mla/triangle.htm
@@ -345,7 +281,7 @@ end
 % dlmwrite(nodzname,matvals,'delimiter','\t','-append')
 % %saveNodzSub
 
-function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname, clusterP) %,voxMask)
+function reportResultsVoxel(z,c,threshMin,threshMax,good_idx,beh_names,hdr, statname) %,voxMask)
 for i = 1:length(beh_names) %or size(beh,2)
     thresh_idx = union(find(z(:,i) < threshMin(i)), find(z(:,i) > threshMax(i)) );
     fprintf('%s z=%f..%f, %d voxels survive threshold\n', deblank(beh_names{i}),min(z(:,i)),max(z(:,i)),length(thresh_idx) );
@@ -649,9 +585,81 @@ z = -p2z(z); %convert probabilities to Z-scores, 1/2014: minus so p0.05 is posit
 z(indexL) = -z(indexL); %negative correlations have negative Z scores
 %end lieberSub()
 
-function [uncZ, threshMin, threshMax, threshClusterNeg, threshClusterPos] = glm_permSub(Y, X, nPerms, kPcrit, good_idx, hdrTFCE, hdr, clusterP)
-%a t-test is a form of GLM, the contrast is [1 0] (slope, intercept: intercept is a nuisance regressor)
-[uncZ, threshMin, threshMax, threshClusterNeg, threshClusterPos] = glm_perm_flSub(Y, [X ones(size(X,1),1)], [1 0]', nPerms, kPcrit, good_idx, hdrTFCE, hdr, clusterP);
+function [uncZ, threshMin, threshMax] = glm_permSub(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
+%returns uncorrected z-score for all voxels in Y given single column predictor X
+% Y: volume data
+% X: single column predictor
+%if either X or Y is binomial, results are pooled variance t-test, else correlation coefficient
+% nPerms: Number of permutations to compute
+% kPcrit: Critical threshold
+%Example
+% glm_t([1 1 0 0 0 1; 0 0 1 1 1 0]',[1 2 3 4 5 6]') %pooled variance t-test
+%
+%inspired by Ged Ridgway's glm_perm_flz
+% save('glm_permSub'); %<-troublshoot, e.g. load('glm_permSub.mat'); glm_perm(Y, X, nPerms, kPcrit, good_idx, hdrTFCE)
+if ~exist('nPerms','var')
+    nPerms = 0;
+end
+if ~exist('kPcrit','var')
+    kPcrit = 0.05;
+end
+% Basics and reusable components
+[n f] = size(X); %rows=observations, columns=factors
+[nY v] = size(Y); %#ok<NASGU> v is number of tests/voxels
+if (f ~= 1), error('glm_permSub is for one column of X at a time (transpose?)'); end;
+if nY ~= n, error('glm_permSub X and Y data sizes are inconsistent'); end
+X = [X ones(size(X,1),1)];
+c = [1 0]'; %contrast
+df = n - rank(X);
+pXX = pinv(X)*pinv(X)'; % = pinv(X'*X), which is reusable, because
+pX  = pXX * X';         % pinv(P*X) = pinv(X'*P'*P*X)*X'*P' = pXX * (P*X)'
+% Original design (identity permutation)
+t = glm_quick_t(Y, X, pXX, pX, df, c);
+if any(~isfinite(t(:)))
+    warning('glm_permSub zeroed NaN t-scores'); %CR 3Oct2016
+    t(~isfinite(t))= 0; %CR patch
+end
+uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
+if nPerms < 2
+    threshMin = -Inf;
+    threshMax = Inf;
+    return
+end
+if numel(hdrTFCE) == 3
+   img = zeros(hdrTFCE);
+   img(good_idx) = t;
+   img = tfceMex(img, 100);
+   t = img(good_idx);
+   uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
+end
+% Things to track over permutations
+peak = nan(nPerms,1);
+nadir = nan(nPerms,1);
+peak(1) = max(t);
+nadir(1) = min(t);
+perm5pct = round(nPerms * 0.05);
+startTime = tic;
+for p = 2:nPerms
+    if p == perm5pct
+        fprintf('Expected permutation time is %f seconds\n',toc(startTime)*20)
+    end
+    Xp  = X(randperm(n), :);
+    pXX = pinv(Xp)*pinv(Xp)'; %??? supposedly not require- reusable?
+    pXp = pXX * Xp'; % = pinv(Xp)
+    tp  = glm_quick_t(Y, Xp, pXX, pXp, df, c);
+    if numel(hdrTFCE) == 3
+       img = zeros(hdrTFCE);
+       img(good_idx) = tp;
+       img = tfceMex(img, 100);
+       tp = img(good_idx);
+    end
+    peak(p) = max(tp(:));
+    nadir(p) = min(tp(:));
+end
+threshMin = permThreshLowSub (nadir, kPcrit);
+threshMax = permThreshHighSub (peak, kPcrit);
+threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
+threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
 
 function savePowerSub(les, beh ,good_idx, hdr, roi_names, beh_names)
@@ -665,7 +673,7 @@ m.beh_names = beh_names;
 save('power.mat', '-struct', 'm');
 %end savePowerSub()
 
-function [uncZ, threshMin, threshMax, threshClusterNeg, threshClusterPos] = glm_perm_flSub(Y, X, c, nPerms, kPcrit, good_idx, hdrTFCE, hdr, clusterP)
+function [uncZ, threshMin, threshMax] = glm_perm_flSub(Y, X, c, nPerms, kPcrit, good_idx, hdrTFCE)
 % [UncZ threshLo threshHi] = glm_perm_fl(Y, X, c, nPerms, pClus)
 %glm_perm_flz2: A simple Freedman-Lane permutation test for a t-contrast
 % Usage:  [uncZ, threshLoZ, threshHiZ] = glm_perm_fl(Y, X, c, nPerms, pCrit)
@@ -689,11 +697,6 @@ end
 if ~exist('kPcrit','var')
     kPcrit = 0.05;
 end
-if ~exist('clusterP','var') || ~exist('hdr','var')
-    clusterP = 0;
-end
-threshClusterNeg = 0;
-threshClusterPos = 0;
 % Basics and reusable components
 [n p] = size(X);
 [nY ~] = size(Y);
@@ -720,16 +723,6 @@ if numel(hdrTFCE) == 3
    t = img(good_idx);
    uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
 end
-tCritCluster = abs(spm_invTcdf(clusterP,df));
-if clusterP ~= 0 %cluster thresholding only
-    tImg = vec2img (t, good_idx, hdr.dim(1:3));
-    clusterPeak = nan(nPerms,1);
-    clusterNadir = nan(nPerms,1);
-    clusterPeak(1) = maxClusterVoxSub(tImg, tCritCluster);
-    clusterNadir(1) = maxClusterVoxSub(tImg, -tCritCluster);
-    %fprintf('max observed positive cluster size %d\n', clusterPeak(1));
-    %fprintf('max observed negative cluster size %d\n', clusterNadir(1));
-end
 % Things to track over permutations
 peak = nan(nPerms,1);
 nadir = nan(nPerms,1);
@@ -752,41 +745,12 @@ for p = 2:nPerms
     end
     peak(p) = max(tp);
     nadir(p) = min(tp);
-    if clusterP ~= 0
-        tpImg = vec2img (tp, good_idx, hdr.dim(1:3));
-        clusterPeak(p) = maxClusterVoxSub(tpImg, tCritCluster);
-        clusterNadir(p) = maxClusterVoxSub(tpImg, -tCritCluster);
-    end  
 end
 threshMin = permThreshLowSub (nadir, kPcrit);
 threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
-if (clusterP == 0),  return; end
-threshClusterPos = permThreshHighSub (clusterPeak, kPcrit);
-threshClusterNeg = permThreshHighSub (clusterNadir, kPcrit);
-% fprintf('positive clusters %d..%d\n', min(clusterPeak(:)), max(clusterPeak(:)));
-% fprintf('negative clusters %d..%d\n', min(clusterNadir(:)), max(clusterNadir(:)));
 %end glm_perm_flSub()
-
-function tImg = vec2img (t, good_idx, hdrDim)
-%convert 1D vector of t-scores to 3D volume, untested voxels set to zero
-tImg = zeros(hdrDim);
-tImg(good_idx) = t;
-%end t2img()
-
-function mx = maxClusterVoxSub(img, thresh)
-%report the size (in voxels) of largest cluster that exceeds threshold
-if (thresh < 0)
-     cimg = (img <= thresh) * 1.0;
-else
-     cimg = (img >= thresh) * 1.0;
-end;
-[L,nclusters] = spm_bwlabel(cimg,26);
-if (nclusters < 1), mx = 0; return; end; %no clusters survive
-L=L(L~=0);
-mx = sum(L(:)==mode(L(:)));
-%end maxClusterVoxSub()
 
 function s = glm_quick_t(y, X, pXX, pX, df, c)
 b = pX * y;                     % parameters

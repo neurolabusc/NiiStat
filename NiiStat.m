@@ -19,7 +19,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 %test
 
-fprintf('Version 3 March 2017 of %s %s %s\n', mfilename, computer, version);
+fprintf('Version 3 April 2017 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
 import java.lang.*;
@@ -79,6 +79,7 @@ end
 if ~exist('doSVM','var')
     doSVM = false;
 end
+clusterP = 0; %none
 doVoxReduce = false;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
@@ -88,7 +89,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only, 12=Cluster) [multi OK]',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -135,7 +136,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     end
     if any(special == 4) %allow WM/CSF connections
         GrayMatterConnectivityOnly = false;
-    end
+    end   
     if any(special == 5) %allow user to specify custom ROIs
         customROI = true;
         %if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
@@ -160,6 +161,10 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     elseif any(special == 11)
         hemiKey = 2;
     end
+    if any(special == 12) %allow WM/CSF connections
+        ans= inputdlg('Enter cluster P','cluster P',[1 40],{'0.001'});
+        clusterP = str2num(ans{1});
+    end 
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -175,7 +180,7 @@ for i = 1: length(modalityIndices) %for each modality
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname); %%GY
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname, clusterP); %%GY
     end
 end
 %end nii_stat_mat()
@@ -249,7 +254,7 @@ nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname) %%GY
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, statname, clusterP) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -860,7 +865,7 @@ if sum(isnan(beh(:))) > 0
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE, clusterP);
         end
 
 %         diary off
@@ -877,7 +882,7 @@ else
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, clusterP);
     end
 end
 
