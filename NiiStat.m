@@ -162,6 +162,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         hemiKey = 2;
     end
     if any(special == 12) %allow WM/CSF connections
+        if (numPermute < 2) && (numPermute > -2) 
+            error('Cluster thresholding requires permutations');
+        end
+        if (max(roiIndices(:)) > 0) || (min(roiIndices(:)) < 0)
+            error('Cluster thresholding requires voxelwise analyses');
+        end
         ans= inputdlg('Enter cluster P','cluster P',[1 40],{'0.001'});
         clusterP = str2num(ans{1});
     end 
