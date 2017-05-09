@@ -16,15 +16,16 @@ for f = 1 : size(matnames,1)
     matname = deblank(matnames(f,:));
     if ~exist(matname, 'file'), error('Unable to find %s', matname); end;
     mat = load(matname);
-    
-    %auto-detect modalities
-    fld=fieldnames(mat);
+    fld=fieldnames(mat); %<- auto-detect all modalities
+    %fld = {'lesion'}; % <- convert a single modality
     for i = 1: numel(fld)
+        if ~isfield(mat,fld), continue; end;
         if isfield( mat.(fld{i}),'dat') && isfield( mat.(fld{i}),'hdr')
             hdr = mat.(fld{i}).hdr;
             img = mat.(fld{i}).dat;
             [pth,nam] = fileparts(matname);
             hdr.fname = fullfile(pth, [nam '_' deblank(fld{i}) '.nii']);
+            %hdr.fname = fullfile(pth, [nam '.nii']); %for single modality
             spm_write_vol(hdr,img);
         end
     end

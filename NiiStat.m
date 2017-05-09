@@ -450,16 +450,16 @@ for i = 1:size(matnames,1)
                     subj_data{idx}.(ROIfield).hdr = dat.(ROIfield).hdr; %#ok<AGROW>
                     subj_data{idx}.(ROIfield).dat = dat.(ROIfield).dat(voxMask == 1); %#ok<AGROW>
                 end
-
-                if regressBehav && isfield (dat.lesion, 'dat')
-                    dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
-                    subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
-                end
                 if (idx == 1) && (roiIndex < 1) %first image of voxelwise analyses
                     vox = numel(subj_data{idx}.(ROIfield).dat(:));
                     vox = vox * size(matnames,1); %worst case scenario: all individuals have image data
                     gb = (vox * 8)/ (1024^3); %doubles use 8-bytes
                     fprintf('The imaging data will require %.3f gb of memory\n',gb);
+                end
+                if regressBehav && isfield (dat.lesion, 'dat')
+                    dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
+                    subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
+                    %fprintf ('Participant\t%s\tVolume\t%g\n', subj_data{idx}.filename, subj_data{idx}.lesion.vol);
                 end
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);
@@ -546,7 +546,6 @@ if regressBehav
         end
     end
 end %if regressBehav - regress behavioral data using lesion volume
-
 roiName = '';
 if roiIndex == 0 %voxelwise lesion analysis
     les_names = [];
