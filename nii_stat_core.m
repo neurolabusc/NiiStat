@@ -249,7 +249,7 @@ else
     cimg = (img >= thresh) * 1.0;
 end;
 [L,nclusters] = spm_bwlabel(cimg,26);
-if (nclusters < 1), fprintf('No cluster-thresholded image will be created: no voxels exceed %g\n', thresh); return; end; %no clusters survive
+if (nclusters < 1), fprintf('No cluster-thresholded image will be created: no voxels exceed %g (required at least %d voxels)\n', thresh, minClusterVox); return; end; %no clusters survive
 nOK = 0; 
 for i = 1:nclusters
     sz = sum(L(:)==i);
@@ -259,7 +259,7 @@ for i = 1:nclusters
         nOK = nOK + 1;
     end
 end
-if (nOK < 1), fprintf('No cluster-thresholded image will be created: no clusters >%g with at least %d voxels\n', thresh, minClusterVox); return; end; %no clusters survive
+if (nOK < 1), fprintf('No cluster-thresholded image will be created: no clusters exceed %g with at least %d voxels\n', thresh, minClusterVox); return; end; %no clusters survive
 L(L>0) = 1.0; %binary image: 0 or 1 (masked, survive)
 img = img .* L;
 hdr.fname = [statName '.nii'];
@@ -269,7 +269,7 @@ hdr.private.dat.scl_inter = 0;
 hdr.descrip = sprintf('z %.3f, cluster %d voxels', thresh, minClusterVox);
 hdr.private.dat.dtype = 'FLOAT32-LE';%'INT16-LE', 'FLOAT32-LE';
 hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
-fprintf('%d clusters exceed >%g with at least %d voxels %s\n', nOK, thresh, minClusterVox, hdr.fname);
+fprintf('%d clusters exceed %g with at least %d voxels %s\n', nOK, thresh, minClusterVox, hdr.fname);
 spm_write_vol(hdr,img);
 %end clusterSub()
 
@@ -758,6 +758,8 @@ for p = 2:nPerms
         clusterNadir(p) = maxClusterVoxSub(tpImg, -tCritCluster);
     end  
 end
+%save('perm.mat','peak'); error('Created perm file');
+% save('perm.mat','clusterPeak'); error('Created perm file');
 threshMin = permThreshLowSub (nadir, kPcrit);
 threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant

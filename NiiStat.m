@@ -819,7 +819,6 @@ if size(beh,2) == 1
 else
     fprintf('**** Analyzing %s with %d participants for %d behavioral variables across %d (of %d) regions/voxels.\n',deblank(statname),size(les,1),size(beh,2), sum(double(logicalMask)), size(les,2));
 end
-
 if ~isempty (voxMask)
     if numel (voxMask) ~= numel (logicalMask)
         error ('Something is very wrong: voxMask and logicalMask don''t match in size %d ~= %d', numel (voxMask),numel (logicalMask) );

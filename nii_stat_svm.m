@@ -16,7 +16,6 @@ if numel(les_names) ~= size(les,2) %for connectome analyses
     nLabel = numel(les_names);
     les_names = les_matrix;    
 end
-
 les = les (:, logicalMask);
 les_names = les_names (logicalMask);
 
