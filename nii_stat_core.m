@@ -163,6 +163,10 @@ else %behavior and/or lesions is continuous
         [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
     end;
 end
+%global global_powerMap %option to save parameters for power analysis
+%if ~isempty(global_powerMap) && global_powerMap
+    savePowerSub(les,beh(:,i),good_idx, hdr, roi_names, beh_names);
+%end
 %next: report thresholds
 if (kNumRandPerm == -1) || (kNumRandPerm == -2) %report thresholds using FDR correction
     for i = 1:numFactors
@@ -334,8 +338,6 @@ if size(img(:)) ~= size(sumImg(:))
     fprintf('%s did not create a sum image, dimensions do not match template image %s\n',mfilename,fname);
     return
 end
-
-
 %sumImg = reshape(sumImg,size(img));
 hdr.fname = [deblank(statname) 'sum.nii'];
 hdr.pinfo = [1;0;0];
@@ -659,6 +661,17 @@ threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
+
+function savePowerSub(les, beh ,good_idx, hdr, roi_names, beh_names)
+%save components required for a power analysis
+m.les = les;
+m.beh = beh;
+m.good_idx = good_idx;
+m.hdr = hdr;
+m.roi_names = roi_names;
+m.beh_names = beh_names;
+save('power.mat', '-struct', 'm');
+%end savePowerSub()
 
 function [uncZ, threshMin, threshMax] = glm_perm_flSub(Y, X, c, nPerms, kPcrit, good_idx, hdrTFCE)
 % [UncZ threshLo threshHi] = glm_perm_fl(Y, X, c, nPerms, pClus)
