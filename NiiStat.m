@@ -31,7 +31,7 @@ checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
 
 if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
-if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"'); end;
+%if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"');end; % 5/12/2017 TH commented out due to SPM website outage. 
 if ~exist('xlsname','var')
    [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
    if isequal(file,0), return; end;
@@ -1206,6 +1206,7 @@ else %do nothing for now
     warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"\n or "!git clone git clone https://github.com/neurolabusc/%s.git"',mfilename,mfilename));
 end
 cd(prevPath);
+disp('finished checkForUpdate!')
 %end checkForUpdate()
 
 function showRestartMsg
