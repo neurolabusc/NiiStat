@@ -465,7 +465,8 @@ for i = 1:size(matnames,1)
                 if regressBehav && isfield (dat.lesion, 'dat')
                     dat.lesion.dat(isnan(dat.lesion.dat(:)))=0; %zero NaNs: out of brain
                     subj_data{idx}.lesion.vol = sum(dat.lesion.dat(:)); %#ok<AGROW>
-                    %fprintf ('Participant\t%s\tVolume\t%g\n', subj_data{idx}.filename, subj_data{idx}.lesion.vol);
+                    mv = matVerSub(dat, Inf);
+                    fprintf ('Participant\t%s\tVolume\t%g\tVersion\t%g\n', subj_data{idx}.filename, subj_data{idx}.lesion.vol, mv);
                 end
             else
                 fprintf('Warning: File %s does not have data for %s\n',in_filename,subfield);

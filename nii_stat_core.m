@@ -76,7 +76,7 @@ if ~exist('clusterP','var')
     clusterP = 0;
 end
 if (clusterP ~= 0) && (abs(kNumRandPerm) < 6)
-   error('Cluster thresholding requires permutation thresholding'); 
+   error('Cluster thresholding requires permutation thresholding');
 end
 [isBinomialBehav, beh] = ifBinomialForce01Sub(beh,true); %is behavioral data binary?
 [isBinomialLes, les] = ifBinomialForce01Sub(les);
@@ -86,10 +86,10 @@ if ((isBinomialLes ||isBinomialBehav) && (numel(hdrTFCE) == 3))
 end
 
 if (clusterP ~= 0) && (isBinomialBehav) && (isBinomialLes)
-    error('Cluster thresholding not yet supported for binomial behavior'); 
+    error('Cluster thresholding not yet supported for binomial behavior');
 end
 if (clusterP ~= 0) && (~isBinomialLes)
-   warning('Cluster thresholding not recommended for continuous images (use TFCE)'); 
+   warning('Cluster thresholding not recommended for continuous images (use TFCE)');
 end
 
 %%% GY: select good ROIs/voxels here
@@ -103,7 +103,7 @@ end
 if size(les,2) == numel(logicalMask) %CR addded this conditional
     les = les (:, good_idx); %squeeze data to only examine critical voxels
 end
-    
+
 %compute statistics
 if isempty(roi_names) %voxelwise analysis
     sumImg = zeros(hdr.dim(1), hdr.dim(2), hdr.dim(3));
@@ -111,10 +111,10 @@ if isempty(roi_names) %voxelwise analysis
     saveSumMapSub(hdr, sumImg,statname);%, voxMask); %create image showing sum of values
 else
     if (clusterP ~= 0)
-        error('Cluster thresholding requires voxelwise analyses (not ROI)'); 
+        error('Cluster thresholding requires voxelwise analyses (not ROI)');
     end
     if (numel(hdrTFCE) == 3)
-        error('TFCE requires voxelwise analyses (not ROI)'); 
+        error('TFCE requires voxelwise analyses (not ROI)');
     end
     sumImg = zeros(numROIorVox,1);
     sumImg(good_idx(:)) = sum (les, 1);
@@ -168,14 +168,14 @@ elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regresso
     end;
 
 elseif isBinomialBehav && isBinomialLes %binomial data
-    
+
     fprintf('Computing Liebermeister measures for %d regions/voxels with %d behavioral variables(positive Z when 0 voxels have behavior 0 and 1 voxels have behavior 1).\n',length(good_idx),size(beh,2));
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i)] = lieber_permSub(les,beh(:,i), kNumRandPerm, kPcrit, hdrTFCE);
     end;
 else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
-    
+
     for i = 1: size(beh,2)
         [z(:,i), threshMin(i), threshMax(i), threshClusterNeg(i), threshClusterPos(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE, hdr, clusterP);
     end;
@@ -216,7 +216,7 @@ if isempty(roi_names) %voxelwise
 	reportResultsVoxel(z,[],threshMin,threshMax,good_idx,beh_names,hdr,statname, clusterP);%, voxMask);
     if clusterP ~= 0
         for i = 1:numFactors
-            
+
             clusterReportSub(hdr, z(:,i), good_idx, clusterP, threshClusterNeg(i), threshClusterPos(i), [deblank(statname) deblank(beh_names{i})])
             %fprintf('p<%.3f permutation correction for %s is z<%.5f z>%.5f\n',kPcrit,deblank(beh_names{i}),threshMin(i), threshMax(i));
         end;
@@ -250,7 +250,7 @@ else
 end;
 [L,nclusters] = spm_bwlabel(cimg,26);
 if (nclusters < 1), fprintf('No cluster-thresholded image will be created: no voxels exceed %g (required at least %d voxels)\n', thresh, minClusterVox); return; end; %no clusters survive
-nOK = 0; 
+nOK = 0;
 for i = 1:nclusters
     sz = sum(L(:)==i);
     if (sz < minClusterVox)
@@ -325,7 +325,7 @@ for i = 1:length(beh_names)
     nodzname = sprintf ('%s_%sZ.nodz',statname, deblank(beh_names{i}));
     nii_save_nodz(stat.roiname, stat.threshZ, nodzname, logicalMask);
     nodzname = sprintf ('%s_%s_unthreshZ.nodz',statname, deblank(beh_names{i}));
-    nii_save_nodz(stat.roiname, stat.unthreshZ, nodzname, logicalMask); 
+    nii_save_nodz(stat.roiname, stat.unthreshZ, nodzname, logicalMask);
     if ~isempty(c) %if we have correlation values
         nodzname = sprintf ('%s_%sR.nodz',statname, deblank(beh_names{i}));
         nii_save_nodz(stat.roiname, stat.threshR, nodzname, logicalMask);
@@ -333,7 +333,7 @@ for i = 1:length(beh_names)
 end
 %end reportResultsMatrix()
 
-% function saveNodzSub(roiname, matvals, nodzname, good_idx) 
+% function saveNodzSub(roiname, matvals, nodzname, good_idx)
 % if min(matvals(:)) == max(matvals(:)), fprintf(' No variability, will not create %s\n', nodzname); end;
 % [kROI, kROINumbers, ROIIndex] = nii_roi_list(roiname, false);
 % if ROIIndex < 1, return; end; %unable to find ROI
@@ -467,8 +467,8 @@ for i = 1:length(beh_names) %disp (beh_names{i});
         hdrT.fname = sprintf ('threshZ%s_%s.nii',statname, deblank(beh_names{i}));
         imgOutT = zeros(size(img));
         for j = 1:length (signif_idx)
-            zscore = z_column(signif_idx(j));
-            imgOutT(img == good_idx(signif_idx(j))) = zscore;
+            z_score = z_column(signif_idx(j));
+            imgOutT(img == good_idx(signif_idx(j))) = z_score;
         end %for all significant regions
         spm_write_vol(hdrT,imgOutT);
          if ~isempty(c)
@@ -756,9 +756,9 @@ for p = 2:nPerms
         tpImg = vec2img (tp, good_idx, hdr.dim(1:3));
         clusterPeak(p) = maxClusterVoxSub(tpImg, tCritCluster);
         clusterNadir(p) = maxClusterVoxSub(tpImg, -tCritCluster);
-    end  
+    end
 end
-%save('perm.mat','peak'); error('Created perm file');
+%save('permPeak.mat','peak'); save('permNadir.mat','nadir'); error('Created peak and nadir files');
 % save('perm.mat','clusterPeak'); error('Created perm file');
 threshMin = permThreshLowSub (nadir, kPcrit);
 threshMax = permThreshHighSub (peak, kPcrit);
