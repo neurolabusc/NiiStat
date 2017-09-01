@@ -1,4 +1,4 @@
-function [stat] = nii_roi2stats (roiName, inhdr, inimg, statName,diskName)
+function [stat] = nii_roi2stats (roiName, inhdr, inimg, statName,diskName,roiMask)
 %compute mean intensity of input image for every region of interest
 % NB: replaces nii_roi_stats: now able to reslice data if required
 %  roiName : region of interest to use ('jhu', 'bro', 'fox', 'tpm','aal')
@@ -6,6 +6,7 @@ function [stat] = nii_roi2stats (roiName, inhdr, inimg, statName,diskName)
 %  inimg : (only used if inhdr is a structure): input image data
 %  statName : (optional) prefix for struct, e.g. 'rest', 'cbf'
 %  diskName : if not empty, data appended to mat file on disk
+
 %Examples
 % s = nii_roi2stats('jhu','LS_LM1001.nii','','lesion_') %3d volume
 % s = nii_roi2stats('jhu1mm','REST_LM1001.nii,'','lesion_') %4d volumes
@@ -21,6 +22,9 @@ if ~exist('diskName','var')
 end;
 if ~exist('statName','var')
     statName = '';
+end;
+if ~exist('roiMask','var')
+    roiMask = [];
 end;
 if (length(inhdr) < 1), return; end; %escape if no selection
 if ~isstruct(inhdr)
@@ -64,6 +68,20 @@ proi = [statName  roiShortName];
 stat.(proi).label = labelSub (txtName);
 rhdr = spm_vol (deblank (niiName));
 rimg = spm_read_vols (rhdr);
+%next mask ROI with roiMask if supplied
+if ~isempty(roiMask)
+    if ~isfield(roiMask,'hdr') || ~isfield(roiMask,'dat')
+       error('roiMask should provide a hdr and dat'); 
+    end
+    %reslice lesion to match ROI
+    [~, limg] = nii_reslice_target(roiMask.hdr, roiMask.dat, rhdr, 1);
+    lthresh = (0.5 * max(limg(:)) - min(limg(:)))+ min(limg(:));
+    if ~isfinite(lthresh), error('masking threshold error'); end;
+    %set all lesioned voxels to be part of region 0
+    roiVox = sum(rimg(:) > 0);
+    rimg(limg > lthresh) = 0;
+    fprintf(' roiMask: Surviving ROI voxels %d -> %d\n',roiVox, sum(rimg(:) > 0));     
+end
 if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3))
     if ndims(inimg) < 4
         %we could warp the ROI to match the image, however since ROIs are indexed we would need to use nearest neighbor interpolation

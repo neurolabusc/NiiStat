@@ -136,7 +136,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     end
     if any(special == 4) %allow WM/CSF connections
         GrayMatterConnectivityOnly = false;
-    end   
+    end
     if any(special == 5) %allow user to specify custom ROIs
         customROI = true;
         %if (numel(roiIndices) ~= 1) || (roiIndices ~= 0)
@@ -162,7 +162,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         hemiKey = 2;
     end
     if any(special == 12) %allow WM/CSF connections
-        if (numPermute < 2) && (numPermute > -2) 
+        if (numPermute < 2) && (numPermute > -2)
             error('Cluster thresholding requires permutations');
         end
         if (max(roiIndices(:)) > 0) || (min(roiIndices(:)) < 0)
@@ -170,7 +170,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         end
         ans= inputdlg('Enter cluster P','cluster P',[1 40],{'0.001'});
         clusterP = str2num(ans{1});
-    end 
+    end
     statname = answer{7};
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
@@ -1263,14 +1263,18 @@ if isempty(pos), return; end;
 str = str((pos(1)+numel(key)):end);
 key = '.dmg"';
 pos = strfind(str,key);
+if isempty(pos)
+	key = '.zip.001"';
+	pos = strfind(str,key);
+end;
 if isempty(pos), return; end;
 str = str(1:(pos(1)-1));
 vers = str2num(str);
 if isempty(vers), return; end;
 if vers <= matVer, fprintf('Your LIME mat files are up to date\n'); return; end;
-urlupdate = fullfile(fileparts(url), ['M.', str, '.dmg']);
+%urlupdate = fullfile(fileparts(url), ['M.', str, '.dmg']);
 warning('You have mat files %4.4f, the current version is %4.4f', matVer, vers);
-fprintf('Go to <a href="%s">%s</a> for mat files %4.4f\n', urlupdate, urlupdate, vers);
+fprintf('Go to <a href="%s">%s</a> for mat files %4.4f\n', url, url, vers);
 %matVerCheckSub()
 
 % moved from nii_stat_core by GY

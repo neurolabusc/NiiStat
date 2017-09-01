@@ -1,18 +1,23 @@
-function nii_nii2mat (niinames, modalityIndex, disknames, roi)
+function nii_nii2mat (niinames, modalityIndex, disknames, roi, lesionMask)
 %Convert NIfTI images to mat files for analysis with nii_stat_xls
 % niinames = (optional) filenames to convert
 % modality : is this lesion, cbf, etc
 % disknames : (optional) custom name for mat file
+% lesionMask : (optional) if true only voxels in lesion will be used
 %Example
 % nii_nii2mat(strvcat('wa.nii','wb.nii') );
 % nii_nii2mat('vx.nii',1);
 % nii_nii2mat('lesionP11.nii',1,'P11.mat');
 % nii_nii2mat('lesionP11.nii','lesion','P11.mat');
 
+if ~exist('lesionMask','var')
+    lesionMask = false;
+end;
 if ~exist('niinames','var') %no files specified
  niinames = spm_select(inf,'^.*\.(gz|voi|img|nii)$','Select images to convert to mat');
 end;
 if length(niinames) < 1, return; end;
+if iscell(niinames), niinames = char(niinames); end;
 [kModalities, kModalityNumbers] = nii_modality_list();
 if ~exist('modalityIndex','var') %get preferences
     prompt = {['Modality (' sprintf('%s',kModalityNumbers) ')']};
@@ -28,8 +33,6 @@ if ischar(modalityIndex)
     if idx < 1, error('Invalid modality name %s', modalityIndex); end;
     modalityIndex = idx;
 end
-%end modalityIndexSub()
-
 %set modality
 if (modalityIndex > size(kModalities,1)) || (modalityIndex < 1)
     fprintf('%s error: modalityIndex must be a value from 1..%d\n',mfilename,size(kModalities,1));
@@ -66,6 +69,17 @@ for i=1:size(niinames,1)
     else
 		diskName = fullfile(p,[n '.mat']);
     end
+    lesion = [];
+    if lesionMask
+        if ~exist(diskName,'file')
+            error('Lesion masking requires an existing mat file %s', diskName);
+        end
+        m = load(diskName);
+        if ~isfield(m,'lesion')
+            error('Lesion masking requires an existing lesion in mat file %s', diskName);
+        end
+        lesion = m.lesion;
+    end
     hdr = spm_vol(niiname);
     img = spm_read_vols(hdr);
     mn = min(img(:));
@@ -93,7 +107,7 @@ for i=1:size(niinames,1)
         end;
         %s = nii_roi2stats('jhu','LS_LM1001.nii','','','lesion_') %3d volume
         statfield = [Voxfield '_'];
-        new = nii_roi2stats(ROIname,hdr,img,statfield);
+        new = nii_roi2stats(ROIname,hdr,img,statfield,'', lesion);
         stat = nii_mergestruct(stat,new);
     end;
     if exist(diskName,'file')
