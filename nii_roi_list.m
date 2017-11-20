@@ -25,6 +25,7 @@ end
 file_list = char(file_list); %convert to char array
 if nargin < 1, return; end;
 if isnumeric(name) %if "nii_roi_list(3)" set idx to 3 unless out of range
+    error('xx');
     if (name < 1) || (name > size(file_list,1))
         idx = 0;
     else

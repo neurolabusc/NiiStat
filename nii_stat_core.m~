@@ -129,8 +129,6 @@ else
     sumImg = zeros(numROIorVox,1);
     sumImg(good_idx(:)) = sum (lesBinom, 1);
     saveSumMapROI(hdr,sumImg,statname, true); %create image showing sum of values
-    
-
     %saveSumMapROI(hdr,sum (les, 1)/size(les,1),statname); %create image showing sum of values
 end
 numVox = size(les,2); %number of voxels/regions
