@@ -80,6 +80,11 @@ if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3)
                 inimg(:,:,i,v) = spm_slice_vol(inimgOrig1, M, imgdim(1:2), 1); % (linear interp)
             end
         end; %for each volume
+
+%         h =rhdr(1);
+%         h.fname = 'test.nii';
+%         h.dt(1) = 16; %float
+%         spm_write_vol(h,inimg(:,:,:,1));
     else
         %for 4D images, we reslice the ROI to match the imag
         rimgOrig = rimg; %load input image
@@ -91,14 +96,13 @@ if ~isequal(inhdr(1).mat, rhdr.mat) || ~isequal(inhdr(1).dim(1:3), rhdr.dim(1:3)
             M = inv(spm_matrix([0 0 -i])*inv(inhdr(1).mat)*rhdr.mat); %#ok<MINV>
             rimg(:,:,i) = spm_slice_vol(rimgOrig, M, imgdim(1:2), 0); % (nearest neighbor interp)
         end
-        %h =inhdr(1);
-        %h.fname = 'test.nii';
-        %h.dim = inhdr(1).dim(1:3);
-        %spm_write_vol(h,rimg);
+%         h =inhdr(1);
+%         h.fname = 'test.nii';
+%         h.dim = inhdr(1).dim(1:3);
+%         spm_write_vol(h,rimg);
     end
 end %if image must be resliced to match ROI
 if size(inimg,4) == 1 %3D data
-    
     stat.(proi).mean = roiMeanSub (inimg, rimg);
     if (size(stat.(proi).label,1) ~= size(stat.(proi).mean,1))
         error('Error: somthing is wrong with the ROI file: %d labels but %d regions', size(stat.(proi).label,1), size(stat.(proi).mean,1));
@@ -137,6 +141,9 @@ if ~isequal(size(img(1:3)),size(rimg(1:3)))
    return;
 end
 nroi = max(rimg(:));
+%save('img.mat','-struct','img');
+%save('rimg.mat','-struct','rimg');
+%rimg(isnan(img)) = 0; %<- a simpler way to handle NaNs?
 mn = zeros(nroi,1);
 for r = 1:nroi
     %idx = (rimg(:) == r);
@@ -144,6 +151,7 @@ for r = 1:nroi
     mn(r) = mean(img(idx));
     %fprintf('Region %d has %d voxels with a mean of %f\n',r,sum(idx), mn(r));
 end
+
 %end roiMeanSub
 
 function [r,p] = roiCorrelSub (img, rimg, showGraph)

@@ -1,32 +1,25 @@
-function [acc, z_map, acc_per_class, p] = nii_stat_svm_core (xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear)
-%compute linear support vector machine for data
-% xlsname   : name of excel or tab delimted text file:
-%            -first row are column names
-%            -first column: ignored (participant identifier)
-%            -columns 2..N-1: independent variables
-%            -final column: class group variable
-% normRowCol : normalize none [0], rows [1, default], or columns [2]
-% thresholdLo : criteria for classifying final column as class1
-%              example: if 2 then group 1 will be all samples of 2 or less
-% thresholdHi : criteria for classifying final column as class2
-%              example: if 3 then group 3 will be all samples of 3 or more
-% verbose : if true, libsvm generates a lot of messages
-%Example xlsname 
-% subjname	iv1	iv2	dv
-% aa.mat	12	6	1
-% bb.mat	9	6	1
-% bc.mat	6	8	1
-% cx.mat	7	6	0
-% qx.mat	6	6	0
-% zs.mat	2	6	0
-%Example
-%  nii_stat_svm_core('brodmann_language.tab',0,1)
-%  nii_stat_svm_core('cbf_language.tab',0,1)
+function [acc, z_map, acc_per_class, p] = nii_stat_svm_core (data, class_labels, maxNsplits, normRowCol, verbose, islinear)
+% classify the data using linear support vector machine
+% INPUTS:
+% data (#observations x #features) -- data matrix (ROI or voxelwise)
+% class_labels -- zeros and ones for observations in class 1 and 2
+% maxNsplits -- number of splits in the cross-validation procedure
+%               (recommended: 100 for voxelwise analysis, 500 for ROI analysis)
+% normRowCol -- normalize none [0], rows [1, default], or columns [2]
+% verbose -- if true, libsvm generates a lot of messages
+% islinear -- should we use linear kernel for SVM (true by default, set to
+%             false at your own risk)
+% OUTPUTS:
+% acc -- classification accuracy (proportion of correct out-of-sample assignments)
+% z_map -- map of Z-scored feature weights (features being ROIs or voxels)
+% acc_per_class -- accuracy for, separately, class 1 and class 2
+% p -- p-value of classification accuracy, assuming binomial distribution 
 
-if ~exist('xlsname','var') %if Excel file not specified, have user select one
-   [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)'},'Select the design file'); 
-   if isequal(file,0), return; end;
-   xlsname=[pth file];
+% should we optimize C parameter for SVM? it's worth it, but takes time
+optimize_C = true;
+
+if ~exist('maxNsplits','var')
+    maxNsplits = 100; 
 end
 if ~exist('normRowCol','var')
     normRowCol = 1; %none [0], rows [1], or columns [2]
@@ -45,14 +38,7 @@ if ~islinear
     fprintf('Warning: please do not use loading map when conducting non-linear svm!');
 end
 addpath(svmdir); %make sure we can find the utility scripts
-[~,~,x] = fileparts(xlsname);
-if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    num = tabreadSub (xlsname);
-else
-    num = xlsread (xlsname);
-end
-n_dim = size (num, 2) - 1;
-data = num (:, 1:n_dim);
+
 
 %for aalcat we may want to remove one hemisphere
 %data(:,1:2:end)=[]; % Remove odd COLUMNS: left in AALCAT: analyze right
@@ -78,7 +64,6 @@ elseif normRowCol ==  2% rows [1], or columns [2]
 end
 %data  = normRowSub(data);
 %binarize class_label: either 0 or 1
-class_labels = num (:, n_dim+1);
 if (min(class_labels) == max(class_labels))
     error('No variability in class labels (final column of file)');
 end
@@ -99,25 +84,75 @@ if ~exist('thresholdHi','var') %if Excel file not specified, have user select on
 end
 %fprintf('Class labels range from %g to %g, values of %g or less will be group0, values of %g or more will be group1\n', min(class_labels), max(class_labels), thresholdLo, thresholdHi);
 %fprintf('Processing the command line: \n');
-fprintf(' %s (''%s'', %d, %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear);
+%fprintf(' %s (''%s'', %d, %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear);
 
 [class_labels , data] = binarySub(class_labels, data, thresholdLo, thresholdHi);
+
+if islinear 
+    cmd = '-t 0';
+else
+    cmd = '-t 2';
+end
+    
 class1_idx = find (class_labels == 1)';
 class0_idx = find (class_labels == 0)';
 n0 = length (class0_idx); 
 n1 = length (class1_idx); % # examples per class
+N = n0 + n1;
 min_n = min (n0, n1);
 if (n1 < 2) || (n0 < 2)
     fprintf('Each group must have at least 2 observations: please use a different class threshold\n');
+    z_map = []; acc = []; acc_per_class = []; p = [];
     return;
 end
-data = data'; % PLEASE CHECK
+data = data'; 
+
+if optimize_C
+    N_splits = 20; % quick and dirty split-half cross-validation to select C
+    C_list = [0.001 0.0025 0.005 0.01 0.025 0.05 0.1 0.25 0.5 1 2.5 5];
+    for g = 1:N_splits
+        shuffle = randperm (n0);
+        idx01 = class0_idx (sort(shuffle (1:floor(min_n/2))));
+        idx02 = class0_idx (sort(shuffle (floor(min_n/2)+1:min_n)));
+        shuffle = randperm (n1);
+        idx11 = class1_idx (sort(shuffle (1:floor(min_n/2))));
+        idx12 = class1_idx (sort(shuffle (floor(min_n/2)+1:min_n)));
+        
+        data1 = data (:, [idx01 idx11]); data2 = data (:, [idx02 idx12]);
+        class_labels1 = class_labels ([idx01 idx11]); class_labels2 = class_labels ([idx02 idx12]);
+        for C_idx = 1:length(C_list)
+            str = sprintf ('''%s -c %g''', cmd, C_list(C_idx));
+            [out, subSVM1] = evalc (['svmtrain (class_labels1, data1'', ' str ');']);
+            [out, subSVM2] = evalc (['svmtrain (class_labels2, data2'', ' str ');']);
+            ww1 = subSVM1.sv_coef' * subSVM1.SVs;
+            ww2 = subSVM2.sv_coef' * subSVM2.SVs;
+            temp = corrcoef (ww1, ww2);
+            repr(C_idx, g) = temp (1, 2);
+            [~, ~, temp, ~] = evalc ('svmpredict (class_labels2, data2'', subSVM1)');
+            acc1 = temp(1)/100;
+            [~, ~, temp, ~] = evalc ('svmpredict (class_labels1, data1'', subSVM2)');
+            acc2 = temp(1)/100;
+            acc(C_idx, g) = mean ([acc1 acc2]);
+        end  
+    end
+    cost = ((1+acc)/2).^2 + repr.^2;    
+    [~, optC_idx] = max (mean (cost, 2));
+    C = C_list (optC_idx);
+    fprintf ('Optimized value of C: %g\n', C);
+else
+    C = 0.01;
+    fprintf ('No optimization of C; using default of %g\n', C);
+end
+cmd = sprintf ('%s -c %g', cmd, C);
+clear acc;
+
 n_train = min_n - 1; % number of training examples per class
 n_test0 = n0 - n_train; % number of test examples in class 1
 n_test1 = n1 - n_train; % ... and in class 2
 % maximum number of training-test splits
-max_n_splits = nchoosek (n1, n_test1) * nchoosek (n0, n_test0);
-n_splits = min (max_n_splits, 500); 
+warning ('OFF', 'MATLAB:nchoosek:LargeCoefficient');
+theoretical_max_n_splits = nchoosek (n1, n_test1) * nchoosek (n0, n_test0);
+n_splits = min (theoretical_max_n_splits, maxNsplits); 
 correct = zeros (size (class_labels));
 ntrials = zeros (size (class_labels)); % number of times each example was tested
 prev_splits = zeros (1, 2*n_train);
@@ -141,19 +176,10 @@ for split = 1:n_splits
     train_data = data (:, train_idx);
     train_labels = class_labels (train_idx)';  
    	if verbose
-        if islinear
-            model = svmtrain (train_labels', train_data', '-t 0 -c 0.01');
-        else
-            model = svmtrain (train_labels', train_data', '-t 2 -c 0.01');
-        end
+        model = svmtrain (train_labels', train_data', cmd);
         [assignments, ~, ~] = svmpredict (test_labels', test_data', model);
     else %if verbose else silent
-        if islinear
-           [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 0 -c 0.01'')'); %-t 0 = linear
-        else
-            [~, model] = evalc ('svmtrain (train_labels'', train_data'', ''-t 2 -c 0.01'')'); %-t 2 = RBF
-        end
-        %[~, model] = evalc ('svmtrain (train_labels'', train_data'')');
+        [~, model] = evalc ('svmtrain (train_labels'', train_data'', cmd)'); %-t 0 = linear
         [~, assignments, ~, ~] = evalc ('svmpredict (test_labels'', test_data'', model)');
     end %if verbose...
     
@@ -162,24 +188,26 @@ for split = 1:n_splits
     correct_idx = test_idx (find (test_labels == assignments'));
     correct (correct_idx) = correct (correct_idx) + 1;    
 end %for each split  
-%if make_map
-mean_map = mean (map, 1);
-z_map = mean_map ./ std (mean_map);
+% mean_map = mean (map, 1);
+% z_map = mean_map ./ std (mean_map);
+% Z-scoring of maps: a version of delete-d jackknife
+d = abs (n0 - n1) + 2; 
+z_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(N/d-1));
 if exist('good_idx','var')  %insert NaN for unused features
-    z_mapOK = zeros(n_dim,1);
+    z_mapOK = zeros(size(data, 1), 1);
     z_mapOK(:) = nan;
     z_mapOK(good_idx) = z_map;
     z_map = z_mapOK;
 end
-%end make_map
 temp = correct ./ ntrials;
 acc = mean (temp (find (~isnan (temp)))); %#ok<*FNDSB>
-acc_per_class(1) = mean (correct(class1_idx) ./ ntrials(class1_idx));
-acc_per_class(2) = mean (correct(class0_idx) ./ ntrials(class0_idx));
+acc_per_class(1) = mean (temp (intersect (class1_idx, find (~isnan (temp)))));
+acc_per_class(2) = mean (temp (intersect (class0_idx, find (~isnan (temp)))));
+
 %report results
 prob = max(n0,n1)/(n0+n1);
 p = bipSub(acc*n_splits, n_splits, prob);
-fprintf('Observed %d in group0 and %d in group1 (prob = %g%%) with %d predictors\n', n0, n1,max(n0,n1)/(n0+n1), size(data,2));
+fprintf('Observed %d in group0 and %d in group1 (prob = %g%%) with %d predictors\n', n0, n1,max(n0,n1)/(n0+n1), size(data,1));
 fprintf('BinomialProbality nHits= %g, nTotal= %g, IncidenceOfCommonClass= %g, p< %g\n', acc*n_splits, n_splits,prob, p);
 fprintf('Overall Accuracy %g (%g for group0, %g for group1)\n', acc, acc_per_class(2),acc_per_class(1));
 fprintf('Thresh0\t%g\tThresh1\t%g\tn0\t%d\tn1\t%d\tProb\t%g\tAcc\t%g\tAcc0\t%g\tAcc1\t%g\tp<\t%g\n',...

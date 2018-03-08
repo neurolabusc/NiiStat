@@ -19,6 +19,27 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
 %test
 
+%Added by Roger to ensure right NiiStatGUI cfg file is opened and used
+
+%[filepath, name,ext] = which('NiiStatGUI')
+global usesGUI;
+
+if which('NiiStatGUI')
+    temp = which('niistatGUI_cfg.mat');
+    [filepath, name, ext] = fileparts(temp);
+    GUI = load(temp);
+    if GUI.GUIdata.useClassicNiiStat == 1
+        usesGUI = false;
+    else
+        usesGUI = true;
+    end
+else
+    usesGUI = false;
+end
+
+%manually set usesGUI
+%usesGUI = false;
+
 fprintf('Version 3 March 2017 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
@@ -30,13 +51,23 @@ repopath=char(System.getProperty('user.home'));
 checkForUpdate(fileparts(mfilename('fullpath')));
 %checkForMostRecentMatFiles(repopath)
 
-if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
-%if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"');end; % 5/12/2017 TH commented out due to SPM website outage. 
-if ~exist('xlsname','var')
-   [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
-   if isequal(file,0), return; end;
-   xlsname=[pth file];
+% updating SPM temportarily disabled by GY because SPM server is down
+%if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
+%if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"'); end;
+%%%
+
+%%Added switch by Roger
+if usesGUI
+    xlsname = GUI.GUIdata.excelFile;
+else
+    if ~exist('xlsname','var')
+        [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)';'*.val','VLSM/NPM text (*.val)'},'Select the design file');
+        if isequal(file,0), return; end;
+        xlsname=[pth file];
+    end
 end
+
+
 if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to report version and quit
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
@@ -112,21 +143,44 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         def{5} = def{4};
 
     end
-    answer = inputdlg(prompt,dlg_title,num_lines,def);
-    if isempty(answer), return; end;
-    save(cfg_filename,'answer') % save user preferences
-    numPermute = str2double(answer{1});
-    pThresh = str2double(answer{2});
-    minOverlap = str2double(answer{3});
-    if ~designUsesNiiImages
-        roiIndices = str2num(answer{4}); %#ok<ST2NM> - we need to read vectors
-        modalityIndices = str2num(answer{5}); %#ok<ST2NM> - we need to read vectors
+    
+    
+   %Added switch by Roger
+    if usesGUI
+        numPermute = GUI.GUIdata.numPermutations;
+        pThresh = GUI.GUIdata.correctedP;
+        minOverlap = GUI.GUIdata.minOverlap;
+        if ~designUsesNiiImages
+            roiIndices = GUI.GUIdata.atlasChoice;
+            modalityIndices = GUI.GUIdata.modalityChoice;
+        end
+        special = GUI.GUIdata.specialChoice;
+    else 
+        answer = inputdlg(prompt, dlg_title, num_lines, def);
+        if isempty(answer), return; end;
+        save(cfg_filename,'answer') % save user preferences
+        numPermute = str2double(answer{1});
+        pThresh = str2double(answer{2});minOverlap = str2double(answer{3});
+        if ~designUsesNiiImages
+             roiIndices = str2num(answer{4}); %#ok<ST2NM> - we need to read vectors
+             modalityIndices = str2num(answer{5}); %#ok<ST2NM> - we need to read vectors
+        end
+        special = str2num(answer{6}); %#ok<ST2NM> - we need to read vectors
     end
-    special = str2num(answer{6}); %#ok<ST2NM> - we need to read vectors
+   
+    
+    
     if any(special == 1) %select masking image
-        [mfile,mpth] = uigetfile('*.nii;*.hdr','Select the mask image');
-        if isequal(mfile,0), return; end;
-        maskName=[mpth mfile];
+        
+        %%Added switch by Roger
+        if usesGUI
+            maskName = GUI.GUIdata.chosenMask;
+        else
+            [mfile,mpth] = uigetfile('*.nii;*.hdr','Select the mask image');
+            if isequal(mfile,0), return; end;
+            maskName=[mpth mfile];
+        end
+        
     end
     if any(special == 2) %adjust behavior for lesion volume
         regressBehav = true;
@@ -164,7 +218,13 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any (special == 12)
         interhemi = true;
     end
-    statname = answer{7};
+    %Added switch by Roger
+    if usesGUI
+        statname = GUI.GUIdata.resultsFolderName;
+    else
+        statname = answer{7};
+    end
+   
 end;
 if designUsesNiiImages %voxelwise images do not have regions of interest, and are only a single modality
     roiIndices = 0;
@@ -179,7 +239,8 @@ for i = 1: length(modalityIndices) %for each modality
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname); %%GY
+        %Roger added GUI as last argument
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI); %%GY
     end
 end
 %end nii_stat_mat()
@@ -253,7 +314,8 @@ nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 % end
 % %end readDesign()
 
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname) %%GY
+%Roger added GUI as input argument
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -585,10 +647,46 @@ else %if voxelwise else region of interest analysis
     %NEXT roi masking
     roiMaskI = []; %inclusive ROI mask - e.g. if [1 2 12] then only these 3 regions analyzed...
     les_names = cellstr(subj_data{1}.(ROIfield).label); %les_names = cellstr(data.(ROIfield).label);
+   
     if customROI
-        answer = inputdlg(['Only include the following regions (1..', sprintf('%d',numel(les_names)),')'] ,'ROI inclusion criteria',1,{'1 2 6 8'});
-        if isempty(answer), return; end;
-        roiMaskI = str2num(answer{1});
+        
+        %Roger Added the switches below based on the GUI.GUIdata through
+        %line 682
+        if GUI.GUIdata.useClassicNiiStat == 1
+            answer = inputdlg(['Only include the following regions (1..', sprintf('%d',numel(les_names)),')'] ,'ROI inclusion criteria',1,{'1 2 6 8'});
+            if isempty(answer), return; end;
+            roiMaskI = str2num(answer{1});
+        end
+        
+        if GUI.GUIdata.useClassicNiiStat == 0
+           
+            if isequal(ROIfield,'lesion_fox') %lesion_fox
+                roiMaskI = GUI.GUIdata.fox_picks
+            end
+            if isequal(ROIfield,'lesion_aal') %lesion_aal
+                roiMaskI = GUI.GUIdata.aal_picks
+            end
+            if isequal(ROIfield,'lesion_aalcat') %lesion_aalcat
+                roiMaskI = GUI.GUIdata.aalcat_picks
+            end
+            if isequal(ROIfield,'lesion_jhu') %lesion_jhu
+                roiMaskI = GUI.GUIdata.jhu_picks
+            end
+            if isequal(ROIfield,'lesion_aicha')
+                roiMaskI = GUI.GUIdata.aicha_picks
+            end
+            if isequal(ROIfield,'lesion_bro') %lesion_bro
+                roiMaskI = GUI.GUIdata.brodmann_picks
+            end
+            if isequal(ROIfield,'lesion_catani') %lesion_catani
+                roiMaskI = GUI.GUIdata.catani_picks
+            end
+            if isequal(ROIfield,'lesion_cat') %lesion_cat
+                roiMaskI = GUI.GUIdata.cat_picks
+            end
+        end
+        
+        
     else
         global global_roiMask
         roiMaskI = global_roiMask; %inclusion mask
@@ -889,7 +987,7 @@ if sum(isnan(beh(:))) > 0
         %end
 
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
@@ -907,7 +1005,7 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
-        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask);
+        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr);
     else
         nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
     end
@@ -1206,7 +1304,6 @@ else %do nothing for now
     warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"\n or "!git clone git clone https://github.com/neurolabusc/%s.git"',mfilename,mfilename));
 end
 cd(prevPath);
-disp('finished checkForUpdate!')
 %end checkForUpdate()
 
 function showRestartMsg

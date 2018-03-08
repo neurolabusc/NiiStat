@@ -1,25 +1,28 @@
-function [r, z_map, labels, predicted_labels, p] = nii_stat_svr_core (xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR, deleteCols)
-% xlsname : file name to analyze
-% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
-% normRowCol : normalize none [0, default], rows [1], or columns [2]
-% verbose : text details none [0, default], extensive [1]
-% minUnique : mininum number of unique features to use a feature (0 = default)
-% islinear: use linear (1, default) or non-linear (0) fitting
-% nuSVR : use nu-SVR (1) or epsilon-SVR (0, default)
-% deleteCols : remove specified columns from analysis
-%example
-% nii_stat_svr_core ('lesionacute_better_svr.tab')
+function [r, z_map, predicted_labels, p] = nii_stat_svr_core (data, labels, beh_name, clipping, normRowCol, verbose, islinear, nuSVR)
+% predict the scores using linear support vector regression
+% INPUTS:
+% data (#observations x #features) -- data matrix (ROI or voxelwise)
+% labels -- scores to predict (i.e. values of dependent variable)
+% beh_name -- string containing the name of the dependent variable
+% clipping -- 1 if we only want to keep positive feature weights;
+%            -1 if we only want to keep negative feature weights; 
+%             0 if we want to keep positive and negative feature weights (default)
+% normRowCol -- normalize none [0], rows [1, default], or columns [2]
+% verbose -- if true, libsvm generates a lot of messages
+% islinear -- should we use linear kernel for SVM (true by default, set to
+%             false at your own risk)
+% nuSVR -- set to 1 if, for some reason, you want to use nu-SVR formulation
+% OUTPUTS:
+% r -- prediction accuracy (correlation between actual and predicted scores)
+% z_map -- map of Z-scored feature weights (features being ROIs or voxels)
+% predicted_labels -- predicted score values per observation
+% p -- p-value of classification accuracy, assuming binomial distribution
 
-if ~exist('xlsname','var') %if Excel file not specified, have user select one
-   [file,pth] = uigetfile({'*.xls;*.xlsx;*.txt;*.tab','Excel/Text file';'*.txt;*.tab','Tab-delimited text (*.tab, *.txt)'},'Select the design file'); 
-   if isequal(file,0), return; end;
-   xlsname=[pth file];
-end
+optimize_C = true;
+split_half = true; % use split-half resamplinbg to optimize C (recommended; otherwise, 8-fold CV will be used) 
+
 if ~exist('normRowCol','var')
     normRowCol = 0; %[0, default], rows [1], or columns [2]
-end
-if ~exist('clipping','var')
-    clipping = 0;
 end
 if ~exist('verbose','var')
     verbose = false;
@@ -41,40 +44,7 @@ if ~exist('nuSVR','var')
     nuSVR = false;
 end
 addpath(svmdir); %make sure we can find the utility scripts
-%addpath c:/code/libsvm-3.11/matlab;
-[~,~,x] = fileparts(xlsname);
-if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    [num, txt] = tabreadSub (xlsname);
-else
-    [num, txt, ~] = xlsread (xlsname);
-    %num(:,1) = []; % remove first column (subject name)
-end
-if exist ('deleteCols', 'var')
-    txt(:,1) = [];
-    deleteCols = deleteCols -1; %we already removed 1st column
-    s = [];
-    for i = 1:numel(deleteCols)
-        s = [s, ' ', txt{1,deleteCols(i)}];
-    end
-    
-    fprintf('Deleting columns: %s\n',s);
-    txt(:,deleteCols) = [];
-    num(:,deleteCols) = [];
-end
 
-className = txt(1,size(txt,2));
-n_subj = size (num, 1);
-n_dim = size (num, 2) - 1; %final column is predictor
-data = num (:, 1:n_dim);
-if minUnique > 1 %
-    %remove columns with fewer than N number of different values
-    [data , good_idx] = columnUniqueThreshSub(data, minUnique);
-else
-    %else remove columns with NO variability
-    [data, good_idx] = requireVarSub(data);
-end
-
-fprintf(' %s (''%s'', %g, %g, %g, %g, %g, %g);\n', mfilename, xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR);
 if normRowCol ==  -2% rows [1], or columns [2], minus means exclude final column
     fprintf('Normalizing so each column has range 0..1 (last column excluded)\n');
     data(:,1:end-1) = normColSub(data(:,1:end-1));
@@ -95,8 +65,8 @@ elseif clipping == 1
 else
     fprintf ('One-tailed analysis; keeping only negative features\n');
 end
-labels = num (:, size (num, 2));
 labels = normColSub(labels); %CR 20April2015
+n_subj = length (labels);
 predicted_labels = zeros(n_subj,1); %pre-allocate memory
 map = zeros(size(data)); %pre-allocate memory
 
@@ -110,7 +80,79 @@ if nuSVR
 else
     cmd = [cmd ' -s 3'];
 end
-cmd = [cmd ' -c 0.01']; % added by GY 
+
+if optimize_C
+    C_list = [0.001 0.0025 0.005 0.01 0.025 0.05 0.1 0.25 0.5 1 2.5 5];
+    N = length (labels);
+    if split_half
+        N_splits = 20;
+        for g = 1:N_splits
+            shuffle = randperm (N);
+            idx1 = shuffle (1:floor(N/2));
+            idx2 = shuffle (floor(N/2)+1:N);
+            data1 = data (idx1, :); data2 = data (idx2, :);
+            scores1 = labels (idx1); scores2 = labels (idx2);
+            for C_idx = 1:length(C_list)
+                str = sprintf ('''%s -c %g''', cmd, C_list(C_idx));
+                [out, subSVM1] = evalc (['svmtrain (scores1, data1, ' str ');']);
+                [out, subSVM2] = evalc (['svmtrain (scores2, data2, ' str ');']); 
+                [ww1, bb1] = subGetModelWeights (subSVM1, clipping);
+                [ww2, bb2] = subGetModelWeights (subSVM2, clipping);
+                sub_prediction{C_idx}(idx2) = ww1*data2' + bb1;
+                sub_prediction{C_idx}(idx1) = ww2*data1' + bb2;
+                sub_map{C_idx}(2*g-1, :) = ww1;
+                sub_map{C_idx}(2*g, :) = ww2;                
+            end
+        end
+    else
+        % 8-fold cross validation
+        s = floor (N/8);
+        G = N - 8*s;
+        for C_idx = 1:length(C_list)
+            sub_prediction{C_idx} = zeros (size (labels));
+        end        
+        for g = 1:8
+            if g <= G
+                subtest_idx = g*s+g-s:g*s+g;
+            else
+                subtest_idx = g*s+G-s+1:g*s+G;
+            end
+            subtrain_idx = setdiff (1:N, subtest_idx);
+            subtrain_data = data (subtrain_idx, :);
+            subtrain_scores = labels (subtrain_idx);
+            subtest_data = data (subtest_idx, :);
+            subtest_scores = labels (subtest_idx);
+            
+            for C_idx = 1:length(C_list)
+                str = sprintf ('''%s -c %g''', cmd, C_list(C_idx));
+                [out, subSVM] = evalc (['svmtrain (subtrain_scores, subtrain_data, ' str ');']);
+                [ww, bb] = subGetModelWeights (subSVM, clipping);
+                sub_prediction{C_idx}(subtest_idx) = ww*subtest_data' + bb;
+                sub_map{C_idx}(g, :) = ww;
+            end
+        end
+    end
+    
+    for C_idx = 1:length(C_list)
+        temp = corrcoef (sub_prediction{C_idx}, labels);
+        sub_acc(C_idx) = temp (1, 2);
+        temp = sub_map{C_idx};
+        sub_repr(C_idx) = mean (mean (corrcoef (temp')));
+    end
+    cost = ((1+sub_acc)/2).^2 + sub_repr.^2;
+    [~, opt_idx] = max (cost);
+    C = C_list (opt_idx);
+    fprintf ('Optimized value of C: %g\n', C);
+else
+    C = 0.01;
+    fprintf ('No optimization of C; using default of %g\n', C);
+end
+cmd = sprintf ('%s -c %g', cmd, C); 
+
+% run SVR on full data set
+[~, SVM] = evalc(sprintf('svmtrain (labels, data, ''%s'')',cmd)');
+[fulldata_map, ~] = subGetModelWeights (SVM, clipping);
+
 for subj = 1:n_subj
     train_idx = setdiff (1:n_subj, subj);
     train_data = data (train_idx, :);
@@ -132,20 +174,7 @@ for subj = 1:n_subj
     a = ((m+1)*sum(x.*y) - sum(x)*sum(y)) / c;
     b = (sum(x.^2)*sum(y) - sum(x)*sum(x.*y)) / c;
     % predict the test labels
-    ww = SVM.sv_coef' * SVM.SVs; % model weights
-    bb = -SVM.rho; % model offset
-%     if numel(ww) == 6
-%         nx = numel(ww);
-%         if ww(nx-2) > 0, ww(nx-2) = 0; end;
-%         if ww(nx-1) > 0, ww(nx-1) = 0; end;
-%         if ww(nx) > 0, ww(nx) = 0; end;
-%             
-%     end
-    if (clipping == 1)
-        ww (find (ww < 0)) = 0;
-    elseif (clipping == -1)
-        ww (find (ww > 0)) = 0;
-    end
+    [ww, bb] = subGetModelWeights (SVM, clipping);
     predicted_labels(subj) = ww*data(subj, :)' + bb;
     % step 3 of scale correction: rescale using estimated scale&offset
     predicted_labels(subj) = a*predicted_labels(subj) + b;
@@ -153,18 +182,22 @@ for subj = 1:n_subj
 end
 predicted_labels = normColSub(predicted_labels); % GY
 
-%accuracy = sum (predicted_labels' == labels) / n_subj;
-%[r, p] = corr (predicted_labels', labels)
 [r, p] = corrcoef (predicted_labels', labels);
 r = r(1,2); %r = correlation coefficient
 p = p(1,2) /2; %p = probability, divide by two to make one-tailed 
 if (r < 0.0) %one tailed: we predict predicted scores should positively correlate with observed scores
     p = 1.0-p; %http://www.mathworks.com/matlabcentral/newsreader/view_thread/142056
 end
-fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d DV=%s\n',r,r^2, p,size (data, 1),size (data, 2), className{1});
-%weighted results
-mean_map = mean (map, 1);
-z_map = mean_map ./ std (mean_map);
+fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d DV=%s\n',r,r^2, p,size (data, 1),size (data, 2), beh_name);
+% standardize the maps using jaccknife estimates; GY, Jan 2018
+z_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(n_subj-1));
+% compute reproducibility of maps; unused for now, might be useful in future 
+% "pseudomap" is analogous to jackknife "pseudovalue", see e.g. Efron & Tibshirani
+pseudomap = n_subj*repmat (fulldata_map, [n_subj 1]) - (n_subj-1)*map;
+cc = corrcoef (pseudomap');
+reproducibility = mean (cc (find (triu (ones (size (cc)), 1))));
+%mean_map = mean (map, 1);
+%z_map = mean_map ./ std (mean_map);
 if exist('good_idx','var') %insert NaN for unused features
     z_mapOK = zeros(n_dim,1);
     z_mapOK(:) = nan;
@@ -178,59 +211,11 @@ axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
-plot_title = className{1};
+plot_title = beh_name;
 plot_title (plot_title == '_') = '-';
-title (sprintf ('%s; clipping = %d', plot_title, clipping));
+title (sprintf ('%s', plot_title));
 %end nii_stat_svr_core()
 
-function [num, txt] = tabreadSub(tabname)
-%read cells from tab based array. 
-fid = fopen(tabname);
-num = [];
-txt = [];
-row = 0;
-while(1) 
-	datline = fgetl(fid); % Get second row (first row of data)
-	%if (length(datline)==1), break; end
-    if(datline==-1), break; end %end of file
-    if datline(1)=='#', continue; end; %skip lines that begin with # (comments)
-    tabLocs= strfind(datline,char(9)); %findstr(char(9),datline); % find the tabs
-    row = row + 1;
-    if (tabLocs < 1), continue; end; %skip first column
-    dat=textscan(datline,'%s',(length(tabLocs)+1),'delimiter','\t');
-    
-    if isempty(txt) || numel(dat{1}) == size(txt,2)
-        txt = [txt; dat{1}']; %#ok<AGROW>
-    end
-    if (row < 2) , %skip first row 
-        %txt = dat{1}'; 
-        
-        continue;
-    end;
-    for col = 2: size(dat{1},1) %excel does not put tabs for empty cells (tabN+1)
-    	num(row-1, col-1) = str2double(dat{1}{col}); %#ok<AGROW>
-    end
-end %while: for whole file
-fclose(fid);
-%end tabreadSub()
-
-function [good_dat, good_idx] = requireVarSub (dat)
-good_idx=[];
-for col = 1:size(dat,2)
-    if sum(isnan(dat(:,col))) > 0
-       %fprintf('rejecting column %d (non-numeric data')\n',col) %
-    elseif min(dat(:,col)) ~= max(dat(:,col))
-        good_idx = [good_idx, col];  %#ok<AGROW>
-    end
-end %for col: each column
-if sum(isnan(dat(:))) > 0
-    fprintf('Some predictors have non-numeric values (e.g. not-a-number)\n');
-end
-if numel(good_idx) ~= size(dat,2)
-    fprintf('Some predictors have no variability (analyzing %d of %d predictors)\n',numel(good_idx), size(dat,2));
-end
-good_dat = dat(:,good_idx);
-%end requireVarSub()
 
 function x = normColSub(x)
 %normalize each column for range 0..1
@@ -286,6 +271,16 @@ if numel(good_idx) ~= size(dat,2)
 end
 good_dat = dat(:,good_idx);
 %end columnUniqueThreshSub()
+
+function [ww, bb] = subGetModelWeights (model, clipping)
+ww = model.sv_coef' * model.SVs; % model weights
+bb = -model.rho; % model offset
+if (clipping == 1)
+    ww (find (ww < 0)) = 0;
+elseif (clipping == -1)
+    ww (find (ww > 0)) = 0;
+end
+% end subGetModelWeights
 
 % function x = columnUniqueThreshSubOld(x, minUnique)
 % %removes columns that have fewer than minUnique different values

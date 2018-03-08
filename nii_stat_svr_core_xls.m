@@ -1,11 +1,12 @@
-function [r, z_map, labels, predicted_labels] = nii_stat_svr_core_GY (xlsname, normRowCol, verbose, minUnique, islinear, nuSVR, clipping)
+function [r, z_map, labels, predicted_labels, p] = nii_stat_svr_core (xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR, deleteCols)
 % xlsname : file name to analyze
+% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
 % normRowCol : normalize none [0, default], rows [1], or columns [2]
 % verbose : text details none [0, default], extensive [1]
 % minUnique : mininum number of unique features to use a feature (0 = default)
 % islinear: use linear (1, default) or non-linear (0) fitting
 % nuSVR : use nu-SVR (1) or epsilon-SVR (0, default)
-% clipping: clip weights to positive (1), negative (-1), or no clipping (0 = default)
+% deleteCols : remove specified columns from analysis
 %example
 % nii_stat_svr_core ('lesionacute_better_svr.tab')
 
@@ -16,6 +17,9 @@ if ~exist('xlsname','var') %if Excel file not specified, have user select one
 end
 if ~exist('normRowCol','var')
     normRowCol = 0; %[0, default], rows [1], or columns [2]
+end
+if ~exist('clipping','var')
+    clipping = 0;
 end
 if ~exist('verbose','var')
     verbose = false;
@@ -33,16 +37,32 @@ end
 if ~islinear
     fprintf('Warning: please do not use map when conducting non-linear svr!');
 end
+if ~exist('nuSVR','var') 
+    nuSVR = false;
+end
 addpath(svmdir); %make sure we can find the utility scripts
 %addpath c:/code/libsvm-3.11/matlab;
 [~,~,x] = fileparts(xlsname);
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-    num = tabreadSub (xlsname);
-    
+    [num, txt] = tabreadSub (xlsname);
 else
-    [num, ~, ~] = xlsread (xlsname);
-    num(:,1) = []; % remove first column (subject name)
+    [num, txt, ~] = xlsread (xlsname);
+    %num(:,1) = []; % remove first column (subject name)
 end
+if exist ('deleteCols', 'var')
+    txt(:,1) = [];
+    deleteCols = deleteCols -1; %we already removed 1st column
+    s = [];
+    for i = 1:numel(deleteCols)
+        s = [s, ' ', txt{1,deleteCols(i)}];
+    end
+    
+    fprintf('Deleting columns: %s\n',s);
+    txt(:,deleteCols) = [];
+    num(:,deleteCols) = [];
+end
+
+className = txt(1,size(txt,2));
 n_subj = size (num, 1);
 n_dim = size (num, 2) - 1; %final column is predictor
 data = num (:, 1:n_dim);
@@ -54,7 +74,7 @@ else
     [data, good_idx] = requireVarSub(data);
 end
 
-fprintf(' %s (''%s'', %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, verbose, minUnique, islinear);
+fprintf(' %s (''%s'', %g, %g, %g, %g, %g, %g);\n', mfilename, xlsname, clipping, normRowCol, verbose, minUnique, islinear, nuSVR);
 if normRowCol ==  -2% rows [1], or columns [2], minus means exclude final column
     fprintf('Normalizing so each column has range 0..1 (last column excluded)\n');
     data(:,1:end-1) = normColSub(data(:,1:end-1));
@@ -65,8 +85,15 @@ elseif normRowCol ==  1% rows [1], or columns [2]
     fprintf('Normalizing so each row has range 0..1\n');
     data = normRowSub(data);
 elseif normRowCol ==  2% rows [1], or columns [2]
-    fprintf('Normalizing so each column has range 0..1\n');
+    %fprintf('Normalizing so each column has range 0..1\n');
     data = normColSub(data);
+end
+if clipping == 0
+    fprintf ('Two-tailed analysis; keeping both positive and negative features\n');
+elseif clipping == 1
+    fprintf ('One-tailed analysis; keeping only positive features\n');
+else
+    fprintf ('One-tailed analysis; keeping only negative features\n');
 end
 labels = num (:, size (num, 2));
 labels = normColSub(labels); %CR 20April2015
@@ -78,7 +105,7 @@ if islinear
 else
     cmd = '-t 2';
 end
-if exist('nuSVR','var') && nuSVR
+if nuSVR
     cmd = [cmd ' -s 4'];
 else
     cmd = [cmd ' -s 3'];
@@ -106,16 +133,25 @@ for subj = 1:n_subj
     % predict the test labels
     ww = SVM.sv_coef' * SVM.SVs; % model weights
     bb = -SVM.rho; % model offset
+%     if numel(ww) == 6
+%         nx = numel(ww);
+%         if ww(nx-2) > 0, ww(nx-2) = 0; end;
+%         if ww(nx-1) > 0, ww(nx-1) = 0; end;
+%         if ww(nx) > 0, ww(nx) = 0; end;
+%             
+%     end
     if (clipping == 1)
-        ww (find (ww > 0)) = 0;
-    elseif (clipping == -1)
         ww (find (ww < 0)) = 0;
+    elseif (clipping == -1)
+        ww (find (ww > 0)) = 0;
     end
     predicted_labels(subj) = ww*data(subj, :)' + bb;
     % step 3 of scale correction: rescale using estimated scale&offset
     predicted_labels(subj) = a*predicted_labels(subj) + b;
     map (subj, :) = ww; % used to be SVM.sv_coef' * SVM.SVs;
 end
+predicted_labels = normColSub(predicted_labels); % GY
+
 %accuracy = sum (predicted_labels' == labels) / n_subj;
 %[r, p] = corr (predicted_labels', labels)
 [r, p] = corrcoef (predicted_labels', labels);
@@ -124,7 +160,7 @@ p = p(1,2) /2; %p = probability, divide by two to make one-tailed
 if (r < 0.0) %one tailed: we predict predicted scores should positively correlate with observed scores
     p = 1.0-p; %http://www.mathworks.com/matlabcentral/newsreader/view_thread/142056
 end
-fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d\n',r,r^2, p,size (data, 1),size (data, 2));
+fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d DV=%s\n',r,r^2, p,size (data, 1),size (data, 2), className{1});
 %weighted results
 mean_map = mean (map, 1);
 z_map = mean_map ./ std (mean_map);
@@ -135,17 +171,22 @@ if exist('good_idx','var') %insert NaN for unused features
     z_map = z_mapOK;
 end
 %plot results
+figure;
 plot (labels, predicted_labels, 'o');
 axis ([min(labels(:)) max(labels(:)) min(labels(:)) max(labels(:))]);
 %set (gca, 'XTick', [0 1 2 3 4]);
 xlabel ('Actual score');
 ylabel ('Predicted score');
+plot_title = className{1};
+plot_title (plot_title == '_') = '-';
+title (sprintf ('%s; clipping = %d', plot_title, clipping));
 %end nii_stat_svr_core()
 
-function num = tabreadSub(tabname)
+function [num, txt] = tabreadSub(tabname)
 %read cells from tab based array. 
 fid = fopen(tabname);
 num = [];
+txt = [];
 row = 0;
 while(1) 
 	datline = fgetl(fid); % Get second row (first row of data)
@@ -154,9 +195,17 @@ while(1)
     if datline(1)=='#', continue; end; %skip lines that begin with # (comments)
     tabLocs= strfind(datline,char(9)); %findstr(char(9),datline); % find the tabs
     row = row + 1;
-    if (row < 2) , continue; end; %skip first row 
     if (tabLocs < 1), continue; end; %skip first column
     dat=textscan(datline,'%s',(length(tabLocs)+1),'delimiter','\t');
+    
+    if isempty(txt) || numel(dat{1}) == size(txt,2)
+        txt = [txt; dat{1}']; %#ok<AGROW>
+    end
+    if (row < 2) , %skip first row 
+        %txt = dat{1}'; 
+        
+        continue;
+    end;
     for col = 2: size(dat{1},1) %excel does not put tabs for empty cells (tabN+1)
     	num(row-1, col-1) = str2double(dat{1}{col}); %#ok<AGROW>
     end

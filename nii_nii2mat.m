@@ -93,6 +93,7 @@ for i=1:size(niinames,1)
         end;
         %s = nii_roi2stats('jhu','LS_LM1001.nii','','','lesion_') %3d volume
         statfield = [Voxfield '_'];
+        
         new = nii_roi2stats(ROIname,hdr,img,statfield);
         stat = nii_mergestruct(stat,new);
     end;

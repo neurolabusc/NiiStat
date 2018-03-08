@@ -1,5 +1,6 @@
-function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask)
+function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask, hdr)
 analyzing_connectome = false;
+voxelwise_analysis = isempty (les_names);
 
 if numel(les_names) ~= size(les,2) %for connectome analyses
     les_matrix = [];
@@ -17,13 +18,28 @@ if numel(les_names) ~= size(les,2) %for connectome analyses
     les_names = les_matrix;    
 end
 
-les = les (:, logicalMask);
-les_names = les_names (logicalMask);
-
-if numel(les_names) ~= size(les,2)
-    fprintf('%s error: number of feature names does not match number of features',mfilename);
-    return;
+% added by GY
+if ~voxelwise_analysis % if ROI analysis (as opposed to voxelwise)
+    les = les (:, logicalMask);
+    les_names = les_names (logicalMask);
+    if numel(les_names) ~= size(les,2)
+        fprintf('%s error: number of feature names does not match number of features',mfilename);
+        return;
+    end    
+else
+    bb = unique (les (:));
+    if length (bb) == 2 && bb(1) == 0 && bb(2) == 1 % voxelwise lesion maps
+        % Normalize the lesion maps: divide each (binary) voxel by sqrt(lesion size)
+        % So, each subject's lesion vector has unit norm;
+        % this could help reduce the effect of lesion size.
+        % See Zhang et al., "Multivariate Lesion-Symptom Mapping Using
+        % Support Vector Regression", HBM 2014, section 3.5
+        les = les ./ repmat (sqrt (sum (les, 2)), [1 size(les, 2)]);
+        les (find (isnan (les))) = 0;
+    end
 end
+
+
 if ~exist('statname','var')
     statname = 'anonymous';
 end
@@ -35,41 +51,60 @@ diary ([deblank(statname) 'svm.txt']);
 for j = 1:size(beh_names,2) %for each beahvioral variable
     beh_name1 = beh_names{j};
     beh1 = beh(:,j);
-    [fnm, nOK] = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
+    if ~voxelwise_analysis
+        [fnm, nOK] = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
+    else
+        nOK = 1;
+    end
+    
     if nOK < 1
         fprintf('Skipping SVM/SVR: no valid data\n');
     else
         % restructured by GY
         if nii_isBinary(beh1)
-            [~, loadingMap{1}, ~, p] = nii_stat_svm_core(fnm); %do not specify thresholds: svm_core will select
-            out_name{1} = [statname '_' deblank(beh_name1) '_svm'];
-            reportLoadingsSub (loadingMap{1}, les_names, deblank (beh_name1), p, 1);
-
+            % do 100 splits for voxelwise SVM, and 500 splits for ROI SVM
+            if voxelwise_analysis
+                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 100); 
+            else
+                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 500); %do not specify thresholds: svm_core will select
+                out_name{1} = [statname '_' deblank(beh_name1) '_svm'];
+                reportLoadingsSub (loadingMap{1}, les_names, deblank (beh_name1), p, 1);
+            end
         else
-            clipping_list = [0 1 -1]; 
-            clipping_str = {'2tail' '1tailPOS' '1tailNEG'};
-            for k = 1:length(clipping_list)
-                [~, loadingMap{k}, ~, ~, p] = nii_stat_svr_core(fnm, clipping_list(k)); %compute regression
-                out_name{k} = [statname '_' deblank(beh_name1) '_svr_' clipping_str{k}];
-                reportLoadingsSub (loadingMap{k}, les_names, deblank (beh_name1), p, 0);
+            if voxelwise_analysis
+                [~, loadingMap{1}, ~, p] = nii_stat_svr_core (les, beh1, deblank (beh_name1), 0);
+            else
+                clipping_list = [0 1 -1];
+                clipping_str = {'2tail' '1tailPOS' '1tailNEG'};
+                for k = 1:length(clipping_list)
+                    [~, loadingMap{k}, ~, p] = nii_stat_svr_core(les, beh1, deblank (beh_name1), clipping_list(k)); %compute regression
+                    out_name{k} = [statname '_' deblank(beh_name1) '_svr_' clipping_str{k}];
+                    reportLoadingsSub (loadingMap{k}, les_names, deblank (beh_name1), p, 0);
+                end
             end
         end        
-        if exist('roifname','var') && ~isempty(roifname)
-            for k = 1:length(loadingMap) % length is either 1 for SVM, or 3 for SVR
-                unfolded_map = zeros (length (logicalMask), 1);
-                unfolded_map (logicalMask) = loadingMap{k};
-                if ~analyzing_connectome
-                    nii_array2roi (unfolded_map, roifname, [out_name{k} '_unthreshZ.nii']);
-                else
-                    weight_matrix = zeros (nLabel, nLabel);
-                    upper_triangle = logical (triu (ones (nLabel), 1));
-                    weight_matrix (upper_triangle) = unfolded_map;
-                    [~, atlas_name] = fileparts (roifname);
-                    %saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
-                    nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '_unthreshZ.nodz'], logicalMask);
-                end
-            end % for k = 1:length(loadingMap)
-        end 
+        if ~isempty (loadingMap{1}) % if analysis didn't work, loadingMap will be empty --GY
+            if exist('roifname','var') && ~isempty(roifname)
+                for k = 1:length(loadingMap) % length is either 1 for SVM and vox SVR, or 3 for ROI SVR
+                    unfolded_map = zeros (length (logicalMask), 1);
+                    unfolded_map (logicalMask) = loadingMap{k};
+                    if ~analyzing_connectome
+                        nii_array2roi (unfolded_map, roifname, [out_name{k} '_unthreshZ.nii']);
+                    else
+                        weight_matrix = zeros (nLabel, nLabel);
+                        upper_triangle = logical (triu (ones (nLabel), 1));
+                        weight_matrix (upper_triangle) = unfolded_map;
+                        [~, atlas_name] = fileparts (roifname);
+                        %saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
+                        nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '_unthreshZ.nodz'], logicalMask);
+                    end
+                end % for k = 1:length(loadingMap)
+            end
+            if voxelwise_analysis
+                out_name = [statname '_' deblank(beh_name1) '_svr'];
+                save_voxelwise_loadings (loadingMap{1}, logicalMask, hdr, out_name);
+            end
+        end
         % /GY
     end
 end
@@ -177,3 +212,16 @@ if n_reported_neg > 0
     end
 end
 %reportLoadingsSub
+
+function save_voxelwise_loadings (loadingMap, logicalMask, hdr, statName)
+unfolded_map = zeros (hdr.dim);
+unfolded_map (logicalMask) = loadingMap;
+hdr.fname = [statName '.nii'];
+hdr.pinfo = [1;0;0];
+hdr.private.dat.scl_slope = 1;
+hdr.private.dat.scl_inter = 0;
+hdr.private.dat.dtype = 'FLOAT32-LE';%'INT16-LE', 'FLOAT32-LE';
+hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
+spm_write_vol(hdr,unfolded_map);
+% end save_voxelwise_loadings
+

@@ -16,6 +16,14 @@ s = dir( [sub '*.txt']); %look in 'templates' subdirectory
 file_list = {s.name}';
 %next, strip .txt
 file_list = sort(file_list); %alphabetical order
+% the block below added by GY, March 2018: discard filenames which start with underscore
+underscored_idx = [];
+for i = 1: numel(file_list)
+    if file_list{i}(1) == '_'
+        underscored_idx = [underscored_idx i];
+    end
+end 
+file_list(underscored_idx) = [];
 number_list='';
 for i = 1: numel(file_list)
 	[~,nam] = fileparts(char(file_list(i)));
