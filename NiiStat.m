@@ -30,11 +30,13 @@ if which('NiiStatGUI')
     GUI = load(temp);
     if GUI.GUIdata.useClassicNiiStat == 1
         usesGUI = false;
+        GUI = [];
     else
         usesGUI = true;
     end
 else
     usesGUI = false;
+    GUI = [];
 end
 
 %manually set usesGUI
