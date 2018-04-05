@@ -120,17 +120,16 @@ else
     sumImg(good_idx(:)) = sum (les, 1);
     saveSumMapROI(hdr,sumImg,statname); %create image showing sum of values
     %Unused - to develop binomial sum map 
-    % save('sumImg.mat','sumImg');
-    % save('hdr.mat','hdr');
-    % save('les.mat','les');
-    % error('dds')
+    save('sumImg.mat','sumImg');
+    save('hdr.mat','hdr');
+    save('les.mat','les');
+    save('good_idx.mat','good_idx');
+    
     %create sum map where any damage counts as 1, completely spared as 0
-    lesBinom = (les > 0)+1;
+    lesBinom = (les > 0)+0.0;
     sumImg = zeros(numROIorVox,1);
     sumImg(good_idx(:)) = sum (lesBinom, 1);
     saveSumMapROI(hdr,sumImg,statname, true); %create image showing sum of values
-    
-
     %saveSumMapROI(hdr,sum (les, 1)/size(les,1),statname); %create image showing sum of values
 end
 numVox = size(les,2); %number of voxels/regions

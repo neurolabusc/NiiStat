@@ -27,6 +27,9 @@ end
 if ~exist('minUnique','var')
    minUnique = 0; 
 end
+if minUnique > 0
+   fprintf('minUnique set to %g\n', minUnique); 
+end
 svmdir = [fileparts(which(mfilename))  filesep 'libsvm' filesep];
 if ~exist(svmdir,'file') 
     error('Unable to find utility scripts folder %s',svmdir);
@@ -110,6 +113,7 @@ if nuSVR
 else
     cmd = [cmd ' -s 3'];
 end
+cmd = [cmd ' -c 0.1'];
 for subj = 1:n_subj
     train_idx = setdiff (1:n_subj, subj);
     train_data = data (train_idx, :);
