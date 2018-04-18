@@ -1173,7 +1173,7 @@ cbfStd = nan;
 if isempty(dat), return; end;
 if isempty(strfind(subfield,'cbf')), return; end;
 if ~issubfieldSub(dat,'cbf'), return; end;
-if issubfield(dat.cbf,'c1R') && issubfield(dat.cbf,'c2R')
+if issubfieldSub(dat.cbf,'c1R') && issubfieldSub(dat.cbf,'c2R')
     cbfMean = (dat.cbf.c1R+dat.cbf.c2R)/2;
     cbfStd = 0.66;
     fprintf('Normalizing intensity using precomputed right hemisphere CBF estimates %g\n', cbfMean);
