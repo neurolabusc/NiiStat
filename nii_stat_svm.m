@@ -1,6 +1,22 @@
-function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask, hdr)
+function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask, hdr, pThresh, numPermute)
 analyzing_connectome = false;
 voxelwise_analysis = isempty (les_names);
+
+% multiple comparisons correction: default is FDR, Bonferroni is also an
+% option, other ways of MC ocrrection are not implemented for SVR/SVM
+if ~exist('numPermute','var')
+    mcorr_method = -1; %FDR
+else
+    if numPermute == 0
+        mcorr_method = 0; % Bonferroni
+    else
+        mcorr_method = -1; %FDR
+    end
+end
+if ~exist('pThresh','var')
+    pThresh = 0.05;
+end
+
 
 if numel(les_names) ~= size(les,2) %for connectome analyses
     les_matrix = [];
@@ -86,23 +102,38 @@ for j = 1:size(beh_names,2) %for each beahvioral variable
         if ~isempty (loadingMap{1}) % if analysis didn't work, loadingMap will be empty --GY
             if exist('roifname','var') && ~isempty(roifname)
                 for k = 1:length(loadingMap) % length is either 1 for SVM and vox SVR, or 3 for ROI SVR
+                    [threshMin, threshMax] = mc_corrected_threshold (loadingMap{k}, pThresh, mcorr_method);
                     unfolded_map = zeros (length (logicalMask), 1);
                     unfolded_map (logicalMask) = loadingMap{k};
+                    thresh_map = threshold_map (unfolded_map, threshMin, threshMax);
+                    suprathreshold = sum (thresh_map ~= 0 & ~isnan (thresh_map));
+                    fprintf ('Thresholds: %.3g, %.3g. Range of feature weights: %.3g to %.3g (%d features pass the thresholod)\n', threshMin, threshMax, min(unfolded_map), max(unfolded_map), suprathreshold); 
                     if ~analyzing_connectome
                         nii_array2roi (unfolded_map, roifname, [out_name{k} '_unthreshZ.nii']);
+                        if ~isempty (thresh_map)
+                            nii_array2roi (thresh_map, roifname, [out_name{k} '_threshZ.nii']);
+                        end
                     else
                         weight_matrix = zeros (nLabel, nLabel);
                         upper_triangle = logical (triu (ones (nLabel), 1));
                         weight_matrix (upper_triangle) = unfolded_map;
                         [~, atlas_name] = fileparts (roifname);
-                        %saveNodzSub(atlas_name, weight_matrix, [out_name{k} '.nodz']);
                         nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '_unthreshZ.nodz'], logicalMask);
+                        if ~isempty (thresh_map)
+                            weight_matrix (upper_triangle) = thresh_map;
+                            nii_save_nodz(atlas_name, weight_matrix, [out_name{k} '_threshZ.nodz'], logicalMask);
+                        end
                     end
                 end % for k = 1:length(loadingMap)
             end
             if voxelwise_analysis
+                [threshMin, threshMax] = mc_corrected_threshold (loadingMap{1}, pThresh, mcorr_method);
+                thresh_map = threshold_map (loadingMap{1}, threshMin, threshMax);
                 out_name = [statname '_' deblank(beh_name1) '_svr'];
-                save_voxelwise_loadings (loadingMap{1}, logicalMask, hdr, out_name);
+                save_voxelwise_loadings (loadingMap{1}, logicalMask, hdr, [out_name '_unthreshZ']);
+                if ~isempty (thresh_map)
+                    save_voxelwise_loadings (thresh_map, logicalMask, hdr, [out_name '_threshZ']);
+                end 
             end
         end
         % /GY
@@ -225,3 +256,26 @@ hdr.dt    =[16,0]; %4= 16-bit integer; 16 =32-bit real datatype
 spm_write_vol(hdr,unfolded_map);
 % end save_voxelwise_loadings
 
+function [threshMin, threshMax] = mc_corrected_threshold (zmap, pThresh, mcorr_method)
+zmap = zmap (~isnan (zmap));
+p2z = @(p) -sqrt(2) * erfcinv(p*2);
+if mcorr_method == 0 % Bonferroni
+    bonferroniP = pThresh / length (zmap);
+    threshMin = -abs(p2z(bonferroniP));
+    threshMax = abs(p2z(bonferroniP));
+else % FDR
+    p = spm_Ncdf(zmap);
+    [~, crit_p, ~]=fdr_bh(p,pThresh,'pdep');
+    threshMin = p2z(crit_p);
+    p = spm_Ncdf(1-zmap); 
+    [~, crit_p, ~]=fdr_bh(p,pThresh,'pdep');
+    threshMax = -p2z(crit_p);
+end
+
+function thresh_map = threshold_map (unfolded_map, threshMin, threshMax)
+thresh_map = unfolded_map;
+thresh_map (thresh_map < 0 & thresh_map > threshMin) = 0;
+thresh_map (thresh_map > 0 & thresh_map < threshMax) = 0;
+if sum (thresh_map ~= 0 & ~isnan (thresh_map)) == 0 
+    thresh_map = [];
+end

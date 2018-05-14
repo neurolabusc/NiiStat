@@ -192,7 +192,10 @@ end %for each split
 % z_map = mean_map ./ std (mean_map);
 % Z-scoring of maps: a version of delete-d jackknife
 d = abs (n0 - n1) + 2; 
-z_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(N/d-1));
+t_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(N/d-1));
+z_map = zeros (size (t_map));
+z_map (:) = nan;
+z_map (~isnan (t_map)) = spm_t2z (t_map(~isnan (t_map)), length(class_labels) - 1);
 if exist('good_idx','var')  %insert NaN for unused features
     z_mapOK = zeros(size(data, 1), 1);
     z_mapOK(:) = nan;

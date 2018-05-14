@@ -148,6 +148,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     
     
    %Added switch by Roger
+   
     if usesGUI
         numPermute = GUI.GUIdata.numPermutations;
         pThresh = GUI.GUIdata.correctedP;
@@ -653,42 +654,46 @@ else %if voxelwise else region of interest analysis
     if customROI
         
         %Roger Added the switches below based on the GUI.GUIdata through
-        %line 682
-        if GUI.GUIdata.useClassicNiiStat == 1
+        
+        if length(GUI) == 0
+       
             answer = inputdlg(['Only include the following regions (1..', sprintf('%d',numel(les_names)),')'] ,'ROI inclusion criteria',1,{'1 2 6 8'});
             if isempty(answer), return; end;
             roiMaskI = str2num(answer{1});
+       
         end
         
-        if GUI.GUIdata.useClassicNiiStat == 0
-           
-            if isequal(ROIfield,'lesion_fox') %lesion_fox
-                roiMaskI = GUI.GUIdata.fox_picks
-            end
-            if isequal(ROIfield,'lesion_aal') %lesion_aal
-                roiMaskI = GUI.GUIdata.aal_picks
-            end
-            if isequal(ROIfield,'lesion_aalcat') %lesion_aalcat
-                roiMaskI = GUI.GUIdata.aalcat_picks
-            end
-            if isequal(ROIfield,'lesion_jhu') %lesion_jhu
-                roiMaskI = GUI.GUIdata.jhu_picks
-            end
-            if isequal(ROIfield,'lesion_aicha')
-                roiMaskI = GUI.GUIdata.aicha_picks
-            end
-            if isequal(ROIfield,'lesion_bro') %lesion_bro
-                roiMaskI = GUI.GUIdata.brodmann_picks
-            end
-            if isequal(ROIfield,'lesion_catani') %lesion_catani
-                roiMaskI = GUI.GUIdata.catani_picks
-            end
-            if isequal(ROIfield,'lesion_cat') %lesion_cat
-                roiMaskI = GUI.GUIdata.cat_picks
+        if length(GUI) > 0
+            
+            if GUI.GUIdata.useClassicNiiStat == 0
+
+                if strfind(ROIfield,'fox') > 0 %lesion_fox
+                    roiMaskI = GUI.GUIdata.fox_picks
+                end
+                if strfind(ROIfield,'aal') > 0 %lesion_aal
+                    roiMaskI = GUI.GUIdata.aal_picks
+                end
+                if strfind(ROIfield,'aalcat') > 0%lesion_aalcat
+                    roiMaskI = GUI.GUIdata.aalcat_picks
+                end
+                if strfind(ROIfield,'jhu') > 0 %lesion_jhu
+                    roiMaskI = GUI.GUIdata.jhu_picks
+                end
+                if strfind(ROIfield,'AICHA') > 0 
+                    roiMaskI = GUI.GUIdata.aicha_picks
+                end
+                if strfind(ROIfield,'bro') > 0 %lesion_bro
+                    roiMaskI = GUI.GUIdata.brodmann_picks
+                end
+                if strfind(ROIfield,'catani') > 0%lesion_catani
+                    roiMaskI = GUI.GUIdata.catani_picks
+                end
+                if strfind(ROIfield,'cat') > 0%lesion_cat
+                    roiMaskI = GUI.GUIdata.cat_picks
+                end
             end
         end
-        
-        
+                
     else
         global global_roiMask
         roiMaskI = global_roiMask; %inclusion mask
@@ -989,7 +994,7 @@ if sum(isnan(beh(:))) > 0
         %end
 
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr, pThresh, numPermute);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
@@ -1007,7 +1012,7 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
-        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr);
+        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr, pThresh, numPermute);
     else
         nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
     end
