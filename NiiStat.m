@@ -737,11 +737,31 @@ else
 end
 
 
-if (reportROIvalues) && (numel(les_names) < 1)
-    fprintf('Unable to create a ROI report [voxelwise analyses]\n');
-elseif (reportROIvalues) && (kAnalyzeCorrelationNotMean)
+%if (reportROIvalues) && (numel(les_names) < 1)
+%    fprintf('Unable to create a ROI report [voxelwise analyses]\n');
+%else
+if (reportROIvalues) && (kAnalyzeCorrelationNotMean)
     fprintf('Unable to create a ROI report [correlation matrix analyses]\n');
-elseif reportROIvalues
+elseif (numel(les_names) < 1)
+    %first row: column labels
+    fprintf('filename\t');
+    for j = 1:n_beh %length(beh_names)
+        fprintf('%s\t', beh_names{j});
+    end
+    fprintf('\n');
+    for i = 1:n_subj
+        fprintf('%s\t',subj_data{i}.filename);
+        for j = 1:n_beh %length(beh_names)
+           if isnan(beh(i, j))
+            fprintf('\t');
+           else
+            fprintf('%g\t',beh(i, j));
+           end
+        end
+        fprintf('\n');
+    end
+    if reportROIvalues, return; end; %no analysis - just report values
+else % reportROIvalues
     %note this next conditional removes regions with little variability.
     %  n.b. this same step is built into nii_stat_core, but we will do it here
     %  so reportROIvalues will match what will be computed
@@ -786,7 +806,7 @@ elseif reportROIvalues
         end
         fprintf('\n');
     end
-    return; %no analysis - just report values
+    if reportROIvalues, return; end; %no analysis - just report values
 end
 
 %%%% GY: moved min_overlap selection from nii_stat_core
