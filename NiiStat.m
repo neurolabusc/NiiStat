@@ -42,6 +42,15 @@ end
 %manually set usesGUI
 %usesGUI = false;
 
+% added by Roger and Grigori, Nov 2018:
+% if Matlab version is older than 2016, do not use GUI
+[~, temp] = version;
+year = str2num (temp (length(temp)-4:length(temp)));
+if year < 2016
+    usesGUI = false;
+    GUI = [];
+end
+
 fprintf('Version 3 March 2017 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
