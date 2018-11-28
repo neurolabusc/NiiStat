@@ -9,6 +9,9 @@ if ~exist('worksheetname','var')
     worksheetname = 'NiiStat';
 end
 [~,~,x] = fileparts(xlsname);
+if ~exist(xlsname,'file')
+   error('Unable to find file %s\n', xlsname);
+end
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     [dMat, CritN] = nii_tab2mat(xlsname);
 else
@@ -18,7 +21,7 @@ else
     end
 end
 if isempty(dMat)
-   error('Unable to load file %s\n', xlsname);
+   error('Unable to load file %s (maybe not Matlab compatible Excel format)\n', xlsname);
 end
 SNames = fieldnames(dMat);
 numFields = length (SNames);

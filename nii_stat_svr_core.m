@@ -18,11 +18,11 @@ function [r, z_map, predicted_labels, p] = nii_stat_svr_core (data, labels, beh_
 % predicted_labels -- predicted score values per observation
 % p -- p-value of classification accuracy, assuming binomial distribution
 
-optimize_C = true;
+optimize_C = true; 
 split_half = true; % use split-half resamplinbg to optimize C (recommended; otherwise, 8-fold CV will be used) 
 
 if ~exist('normRowCol','var')
-    normRowCol = 0; %[0, default], rows [1], or columns [2]
+    normRowCol = 2; %[0, default], rows [1], or columns [2]
 end
 if ~exist('verbose','var')
     verbose = false;
@@ -189,8 +189,11 @@ if (r < 0.0) %one tailed: we predict predicted scores should positively correlat
     p = 1.0-p; %http://www.mathworks.com/matlabcentral/newsreader/view_thread/142056
 end
 fprintf('r=%g r^2=%g, p=%g numObservations=%d numPredictors=%d DV=%s\n',r,r^2, p,size (data, 1),size (data, 2), beh_name);
-% standardize the maps using jaccknife estimates; GY, Jan 2018
-z_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(n_subj-1));
+% standardize the maps using jaccknife estimates; GY, Jan 2018; updated May 2018
+t_map = mean (map, 1) ./ (std (map, 1, 1) * sqrt(n_subj-1));
+z_map = zeros (size (t_map));
+z_map (:) = nan;
+z_map (~isnan (t_map)) = spm_t2z (t_map(~isnan (t_map)), length(labels) - 1);
 % compute reproducibility of maps; unused for now, might be useful in future 
 % "pseudomap" is analogous to jackknife "pseudovalue", see e.g. Efron & Tibshirani
 pseudomap = n_subj*repmat (fulldata_map, [n_subj 1]) - (n_subj-1)*map;
