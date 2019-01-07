@@ -22,6 +22,7 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 %Added by Roger to ensure right NiiStatGUI cfg file is opened and used
 
 %[filepath, name,ext] = which('NiiStatGUI')
+
 global usesGUI;
 
 if which('NiiStatGUI')
@@ -180,8 +181,13 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         special = str2num(answer{6}); %#ok<ST2NM> - we need to read vectors
     end
    
-    
-    
+    %reprocess ROIs
+    if any(special == 13)
+        
+        
+        
+    end
+        
     if any(special == 1) %select masking image
         
         %%Added switch by Roger
@@ -372,7 +378,9 @@ else
         return;
     end
     [~,nam] = fileparts(deblank(kROIs(roiIndex,:)));
+    
     ROIfield = [deblank(kModalities(modalityIndex,:)) '_' nam];
+    
 end
 if ~exist('statname','var') || isempty(statname)
     statname = [ROIfield '_' xlsname];%sprintf ('%s%s',deblank(kModalities(modalityIndex,:)),deblank(kROIs(roiIndex,:)));
@@ -675,31 +683,56 @@ else %if voxelwise else region of interest analysis
         if length(GUI) > 0
             
             if GUI.GUIdata.useClassicNiiStat == 0
+              if strfind(ROIfield,char(GUI.GUIdata.atlas1name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas1picks; 
+                  end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas2name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas2picks; 
+                  end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas3name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas3picks; 
+                  end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas4name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas4picks; 
+                   end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas5name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas5picks; 
+                  end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas6name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas6picks; 
+                   end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas7name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas7picks; 
+                  end
+                   if strfind(ROIfield,char(GUI.GUIdata.atlas8name)) > 0
+                     roiMaskI = GUI.GUIdata.atlas8picks; 
+                  end    
 
-                if strfind(ROIfield,'fox') > 0 %lesion_fox
-                    roiMaskI = GUI.GUIdata.fox_picks
-                end
-                if strfind(ROIfield,'aal') > 0 %lesion_aal
-                    roiMaskI = GUI.GUIdata.aal_picks
-                end
-                if strfind(ROIfield,'aalcat') > 0%lesion_aalcat
-                    roiMaskI = GUI.GUIdata.aalcat_picks
-                end
-                if strfind(ROIfield,'jhu') > 0 %lesion_jhu
-                    roiMaskI = GUI.GUIdata.jhu_picks
-                end
-                if strfind(ROIfield,'AICHA') > 0 
-                    roiMaskI = GUI.GUIdata.aicha_picks
-                end
-                if strfind(ROIfield,'bro') > 0 %lesion_bro
-                    roiMaskI = GUI.GUIdata.brodmann_picks
-                end
-                if strfind(ROIfield,'catani') > 0%lesion_catani
-                    roiMaskI = GUI.GUIdata.catani_picks
-                end
-                if strfind(ROIfield,'cat') > 0%lesion_cat
-                    roiMaskI = GUI.GUIdata.cat_picks
-                end
+%                 if strfind(ROIfield,'fox') > 0 %lesion_fox
+%                     roiMaskI = GUI.GUIdata.fox_picks
+%                 end
+%                 if strfind(ROIfield,'aal') > 0 %lesion_aal
+%                     roiMaskI = GUI.GUIdata.aal_picks
+%                 end
+%                 if strfind(ROIfield,'aalcat') > 0%lesion_aalcat
+%                     roiMaskI = GUI.GUIdata.aalcat_picks
+%                 end
+%                 if strfind(ROIfield,'jhu') > 0 %lesion_jhu
+%                     roiMaskI = GUI.GUIdata.jhu_picks
+%                 end
+%                 if strfind(ROIfield,'AICHA') > 0 
+%                     roiMaskI = GUI.GUIdata.aicha_picks
+%                 end
+%                 if strfind(ROIfield,'bro') > 0 %lesion_bro
+%                     roiMaskI = GUI.GUIdata.brodmann_picks
+%                 end
+%                 if strfind(ROIfield,'catani') > 0%lesion_catani
+%                     roiMaskI = GUI.GUIdata.catani_picks
+%                 end
+%                 if strfind(ROIfield,'cat') > 0%lesion_cat
+%                     roiMaskI = GUI.GUIdata.cat_picks
+%                 end
+                 %roiMaskI = GUI.GUIdata.atlas1picks;
             end
         end
                 

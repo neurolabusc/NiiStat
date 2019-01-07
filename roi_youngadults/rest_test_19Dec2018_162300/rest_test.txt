@@ -1,0 +1,13 @@
+Only analyzing voxels non-zero in at least 1 individuals.
+**** Analyzing rest_test with 77 participants for 4 behavioral variables across 2 (of 116) regions/voxels.
+Computing glm (pooled-variance t-test, linear regression) for 2 regions/voxels with analyzing 4 behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).
+p<0.050000 Bonferroni correction for 2 tests is z=1.95996398, p<0.025000000000 (one tailed, we assume lesions always impair performance)
+___
+slopesEgo z=1.290502..3.387254, 1 regions survive threshold
+1|2001|Precentral_L z=3.3872544
+___
+slopesAllo z=0.108572..1.891622, 0 regions survive threshold
+___
+EgoRatio z=0.596752..1.366779, 0 regions survive threshold
+___
+AlloRatio z=-0.648286..0.410883, 0 regions survive threshold
