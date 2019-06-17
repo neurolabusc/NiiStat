@@ -1,5 +1,5 @@
 %function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, dodtlvc)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -71,6 +71,16 @@ end
 if size(les,1) < 3
     error('Error: data must have at least 3 rows (observations). Perhaps inputs need to be transposed?');
 end
+
+ %performing dtlvc for univariate mapping - Daniel Wiesen 17062019
+  if dodtlvc == 1
+   fprintf('Performing dTLVC lesion volume correction\n');
+   for ni=1:size(les(:,1))
+        lesvol = sum(les(ni, :));
+        les(ni,:) = les(ni,:)/sqrt(lesvol);
+   end
+  end
+
 [isBinomialBehav, beh] = ifBinomialForce01Sub(beh,true); %is behavioral data binary?
 [isBinomialLes, les] = ifBinomialForce01Sub(les);
 if ((isBinomialLes ||isBinomialBehav) && (numel(hdrTFCE) == 3))
