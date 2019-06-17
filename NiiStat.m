@@ -123,6 +123,12 @@ end
 if ~exist('doSVM','var')
     doSVM = false;
 end
+
+%Added by Daniel Wiesen 17062019
+if ~exist('dodtlvc','var')
+    dodtlvc = false;
+end
+
 doVoxReduce = false;
 [kROIs, kROInumbers] = nii_roi_list();
 [~, kModalityNumbers] = nii_modality_list();
@@ -132,7 +138,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only; 12=interhemispheric) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only; 12=interhemispheric) [multi OK]; 13=dTLVC for univariate mapping',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -236,6 +242,12 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     if any (special == 12)
         interhemi = true;
     end
+    
+    %Added by Daniel Wiesen 17062019
+    if any (special == 13)
+        dodtlvc = true;
+    end
+    
     %Added switch by Roger
     if usesGUI
         statname = GUI.GUIdata.resultsFolderName;
@@ -257,8 +269,9 @@ for i = 1: length(modalityIndices) %for each modality
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
-        %Roger added GUI as last argument
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI); %%GY
+        %Roger added GUI as last argument - Daniel Wiesen added dodtlvc as input
+        %argument
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI, dodtlvc); %%GY
     end
 end
 %end nii_stat_mat()
@@ -332,8 +345,9 @@ nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 % end
 % %end readDesign()
 
-%Roger added GUI as input argument
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI) %%GY
+%Roger added GUI as input argument - Daniel Wiesen added dodtlvc as input
+%argument
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI, dodtlvc) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -1039,7 +1053,7 @@ if sum(isnan(beh(:))) > 0
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr, pThresh, numPermute);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE, dodtlvc); %Daniel Wiesen added dodtlvc as input
         end
 
 %         diary off
@@ -1056,7 +1070,7 @@ else
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr, pThresh, numPermute);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, dodtlvc); %Daniel Wiesen added dodtlvc as input
     end
 end
 
