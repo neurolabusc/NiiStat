@@ -1,4 +1,4 @@
-##### Introduction
+##### Introduction test
 
 NiiStat is a set of Matlab scripts for analyzing neuroimaging data from clinical populations
 
