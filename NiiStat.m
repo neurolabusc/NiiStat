@@ -15,58 +15,33 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 % deSkew        : Report and attempt to correct skewed behavioral data
 % doTFCE        : Apply threshold-free cluster enhancement (voxelwise only)
 %Examples
-% NiiStat %use graphical interface
+% NiiStat
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
-%test
+
+% Anthony Androulakis edited NiiStat to work in Octave on November 10, 2019
 
 %Added by Roger to ensure right NiiStatGUI cfg file is opened and used
-
-%[filepath, name,ext] = which('NiiStatGUI')
+%GUI is not used in this Octave version of NiiStat
 
 global usesGUI;
+OctNiiStatpath=what('../NiiStat');
+OctSPM12path=what('spm12-r7487');
+pkg load io %load io package, needed for reading excel file
+addpath(OctSPM12path.path) %after compiling spm for Octave
+addpath(strcat(OctSPM12path.path,'/src')) %after compiling spm for Octave
+addpath(OctNiiStatpath.path) %NiiStat, edited to work in Octave
 
-if which('NiiStatGUI')
-    temp = which('niistatGUI_cfg.mat');
-    [filepath, name, ext] = fileparts(temp);
-    GUI = load(temp);
-    if GUI.GUIdata.useClassicNiiStat == 1
-        usesGUI = false;
-        GUI = [];
-    else
-        usesGUI = true;
-    end
-else
-    usesGUI = false;
-    GUI = [];
-end
+usesGUI = false % no GUI in Octave version yet
+GUI=[]
 
-%manually set usesGUI
-%usesGUI = false;
 
-% added by Roger and Grigori, Nov 2018:
-% if Matlab version is older than 2016, do not use GUI
-[~, temp] = version;
-year = str2num (temp (length(temp)-4:length(temp)));
-if year < 2016
-    usesGUI = false;
-    GUI = [];
-end
-
-fprintf('Version 3 March 2017 of %s %s %s\n', mfilename, computer, version);
+fprintf('Octave Version 1 November 2019 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
-import java.lang.*;
 hemiKey = 0;
 interhemi = false; %% added by GY at RD's request
 statname = '';
-repopath=char(System.getProperty('user.home'));
-checkForUpdate(fileparts(mfilename('fullpath')));
-%checkForMostRecentMatFiles(repopath)
 
-% updating SPM temportarily disabled by GY because SPM server is down
-%if isempty(which('spm')) || ~strcmp(spm('Ver'),'SPM12'), error('SPM12 required'); end;
-%if (spm_update ~= 0), warning('SPM is obsolete, run "spm_update(true)"'); end;
-%%%
 
 %%Added switch by Roger
 if usesGUI
@@ -139,6 +114,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
     num_lines = 1;
     def = [];
     if exist(cfg_filename,'file')
+        disp(cfg_filename)
         s = load(cfg_filename);
         if isfield(s,'answer')
             def = s.answer;
@@ -248,6 +224,7 @@ if designUsesNiiImages %voxelwise images do not have regions of interest, and ar
     roiIndices = 0;
     modalityIndices = 1;
 end
+GUI=[]
 for i = 1: length(modalityIndices) %for each modality
     modalityIndex = modalityIndices(i);
     for j = 1: length(roiIndices)
@@ -257,8 +234,7 @@ for i = 1: length(modalityIndices) %for each modality
            specialStr = ['special=[', strtrim(sprintf('%d ',special)),'] '];
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
-        %Roger added GUI as last argument
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI); %%GY
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname, GUI); %%GY
     end
 end
 %end nii_stat_mat()
@@ -269,68 +245,6 @@ function nii = isNII (filename)
 nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 %end isNII()
 
-% function [designMat, designUsesNiiImages] = readDesign (xlsname)
-% designUsesNiiImages = false;
-% [~,~,x] = fileparts(xlsname);
-% if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
-%     dMat = nii_tab2mat(xlsname);
-% else
-%     dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
-% end
-% SNames = fieldnames(dMat);
-% numFields = length (SNames);
-% if numFields < 2
-%     error('File %s must have multiple columns (a column of file names plus a column for each behavior\n', xlsname);
-% end
-% numNII = 0; %number of NIfTI files
-% numMat = 0; %number of Mat files
-% numOK = 0;
-% %designMat = [];
-% for i=1:size(dMat,2)
-%     matname = deblank( dMat(i).(SNames{1}));
-%     isValid = false;
-%     if numel(SNames) > 1
-%         for j = 2:numel(SNames)
-%             b = dMat(i).(SNames{j});
-%             if ~isempty(b) && isnumeric(b) && isfinite(b)
-%                 isValid = true;
-%             end
-%         end
-%     end
-%     if ~isValid
-%         fprintf('Warning: no valid behavioral data for %s\n',matname);
-%         matname = '';
-%     end
-%     if ~isempty(matname)
-%
-%         [matname] = findMatFileSub(matname,xlsname);
-%
-%         [~, ~, ext] = fileparts(matname);
-%
-%         if strcmpi('.mat',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-%             if strcmpi('.mat',ext)
-%                 numMat = numMat + 1;
-%             elseif strcmpi('.hdr',ext) || strcmpi('.nii',ext)
-%                 numNII = numNII + 1;
-%             end
-%             dMat(i).(SNames{1}) = matname;
-%             numOK = numOK + 1;
-%             designMat(numOK) = dMat(i); %#ok<AGROW>
-%
-%         end
-%     end
-% end
-% if (numNII + numMat) == 0
-%     error('Unable to find any of the images listed in the file %s\n',xlsname);
-% end
-% if (numNII > 0) && (numMat >0) %mixed file
-%     error('Error: some images listed in %s are NIfTI format, others are Mat format. Use nii_nii2mat to convert NIfTI (.nii/.hdr) images.\n',xlsname);
-% end
-% if (numNII > 0)
-%     fprintf('Using NIfTI images. You will have more options if you use nii_nii2mat to convert NIfTI images to Mat format.\n');
-%     designUsesNiiImages = true;
-% end
-% %end readDesign()
 
 %Roger added GUI as input argument
 function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI) %%GY
@@ -424,7 +338,7 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
             %img = spm_read_vols (hdr);
             [hdr, img] = read_volsSub (in_filename);
         elseif (exist (in_filename, 'file'))
-            dat = load (in_filename);
+            dat = load (in_filename); %%%%
             matVer = matVerSub(dat, matVer);
             if  issubfieldSub(dat,subfield)
                 hdr = dat.(ROIfield).hdr;
@@ -477,10 +391,12 @@ if (requireVoxMask) || ((~customROI) && (roiIndex == 0) && (size(matnames,1) > 1
 end
 idx = 0;
 for i = 1:size(matnames,1)
+    %i=size(matnames,1); %%Anthony Androulakis
     [in_filename] = deblank(matnames(i,:));
+    %disp(in_filename) %%Anthony Androulakis %in_filename are the .mat files in the lesions folder
     if isempty(in_filename)
         %warning already generated
-    elseif (exist (in_filename, 'file'))
+    elseif (exist (in_filename, 'file')) %%
         if isNII (in_filename)
             idx = idx + 1;
             data = [];
@@ -498,7 +414,7 @@ for i = 1:size(matnames,1)
             subj_data{idx} = data; %#ok<AGROW>
         else
             %dat = load (in_filename, subfield);
-            dat = load (in_filename);
+            dat = load (in_filename); %%%%
             matVer = matVerSub(dat, matVer);
             [dat, cbfMean, cbfStd] = cbf_normalizeSub(dat, subfield);
             %if  issubfieldSub(dat,'lesion.dat')
@@ -706,33 +622,7 @@ else %if voxelwise else region of interest analysis
                   end
                    if strfind(ROIfield,char(GUI.GUIdata.atlas8name)) > 0
                      roiMaskI = GUI.GUIdata.atlas8picks; 
-                  end    
-
-%                 if strfind(ROIfield,'fox') > 0 %lesion_fox
-%                     roiMaskI = GUI.GUIdata.fox_picks
-%                 end
-%                 if strfind(ROIfield,'aal') > 0 %lesion_aal
-%                     roiMaskI = GUI.GUIdata.aal_picks
-%                 end
-%                 if strfind(ROIfield,'aalcat') > 0%lesion_aalcat
-%                     roiMaskI = GUI.GUIdata.aalcat_picks
-%                 end
-%                 if strfind(ROIfield,'jhu') > 0 %lesion_jhu
-%                     roiMaskI = GUI.GUIdata.jhu_picks
-%                 end
-%                 if strfind(ROIfield,'AICHA') > 0 
-%                     roiMaskI = GUI.GUIdata.aicha_picks
-%                 end
-%                 if strfind(ROIfield,'bro') > 0 %lesion_bro
-%                     roiMaskI = GUI.GUIdata.brodmann_picks
-%                 end
-%                 if strfind(ROIfield,'catani') > 0%lesion_catani
-%                     roiMaskI = GUI.GUIdata.catani_picks
-%                 end
-%                 if strfind(ROIfield,'cat') > 0%lesion_cat
-%                     roiMaskI = GUI.GUIdata.cat_picks
-%                 end
-                 %roiMaskI = GUI.GUIdata.atlas1picks;
+                  end
             end
         end
                 
@@ -783,12 +673,6 @@ else %if voxelwise else region of interest analysis
             %http://stackoverflow.com/questions/13345280/changing-representations-upper-triangular-matrix-and-compact-vector-octave-m
             %extract upper triangle as vector
             A = subj_data{i}.(ROIfield).r;
-            %%% commented out by GY
-            %             A = shrink_matxCustomSub( A,  roiMaskI);
-            %             if GrayMatterConnectivityOnly == true
-            %                 [les_names,A] = shrink_matxSub(labels,A);
-            %                 %fprintf('Only analyzing gray matter regions (%d of %d)\n',size(les_names,1),size(labels,1) );
-            %             end
             B = triu(ones(size(A)),1);
             les(i, :) = A(B==1); %#ok<AGROW>
             if interhemi %% added by GY at RD's request
@@ -825,14 +709,6 @@ else %if voxelwise else region of interest analysis
     else %not DTI n*n connectivity matrix
         for i = 1:n_subj
             les(i, :) = subj_data{i}.(ROIfield).mean;
-
-            %%%% commented out by GY
-            %             if ~isempty(roiMaskI)
-            %                 A = subj_data{i}.(ROIfield).mean;
-            %                 les(i, :) = A(roiMaskI); %#ok<AGROW> %%% NOTE TO GY
-            %             else
-            %                 les(i, :) = subj_data{i}.(ROIfield).mean;     %#ok<AGROW>
-            %             end
         end
         %%% added by GY
         if isempty (roiMaskI)
@@ -956,12 +832,6 @@ if minOverlap > 0  %isBinomialLes
     bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < minOverlap)); %eliminate voxels/regions with no variability
 end
 
-% %%% PLEASE DELETE
-% disp ('ZZZZZZHOPA');
-% length (logical_mask)
-% %%%
-
-
 
 %%% the following line added by GY
 logicalMask (bad_idx) = 0;
@@ -1007,11 +877,8 @@ if sum(isnan(beh(:))) > 0
         les1 = zeros(length(good_idx),size(les,2));
         for j = 1:length(good_idx)
             les1(j, :) = les(good_idx(j), :) ;
-            %les1(j,1) = beh1(j); %to test analyses
         end
         %save(sprintf('nii_stat%d',i)); %<-troublshoot, e.g. load('nii_stat4');  nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask,statname, les_names,hdrTFCE);
-        %localMask = var(les1(:,logicalMask)) ~= 0;
-        %localMask = var(les1(:,logicalMask)) ~= 0;
         localMask = var(les1) ~= 0;
         if minOverlap > 1
             %localMaskMinOverlap = sum(les1(:,logicalMask) ~= 0) > minOverlap;
@@ -1030,11 +897,6 @@ if sum(isnan(beh(:))) > 0
             error ('Something is very wrong: logicalMask1 and localMask don''t match in size %d (or %d) ~= %d', numel(logicalMask1), sum(logicalMask1), numel(localMask) );
         end
 
-        %if any(localMask == false) %regions that have variability overall do not have variability for this factor
-        %    idx = find(logicalMask);
-        %    logicalMask1(idx(find(localMask == false))) = false; %#ok<FNDSB>
-        %end
-
         if doSVM
             nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr, pThresh, numPermute);
         else
@@ -1042,17 +904,8 @@ if sum(isnan(beh(:))) > 0
             nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
         end
 
-%         diary off
-%         cd .. %leave the folder created by chDirSub
-
-        %fprintf('WARNING: Beta release (quitting early, after first behavioral variable)#@\n');return;%#@
     end
 else
-    %for aalcat we may want to remove one hemisphere
-    %les_names(:,1:2:end)=[]; % Remove odd COLUMNS: left in AALCAT: analyze right
-    %les(1:2:end)=[]; % Remove odd COLUMNS: left in AALCAT: analyze right
-    %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
-    %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
         nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr, pThresh, numPermute);
     else
@@ -1068,16 +921,9 @@ cd .. %leave the folder created by chDirSub
 
 % the following function is not used -- GY
 function  mat = shrink_matxCustomSub( mat, roiMaskI)
-%removes columns/rows as specified by the global "roiMask"
-%this next bit allow us to remove ROIs
-% global roiMask
-% roiMask = [1 3 4]; %only include these regions of interest
 if isempty(roiMaskI), return; end;
-%indx = roiMask; %[1 2 5] preserves 1st, 2nd 5th
 smallmat = mat(roiMaskI,:); %remove rows
 mat = smallmat(:,roiMaskI); %remove columns
-%if shrinkLabels == 1, labels = labels(roiMaskI,:); end;
-%end shrink_matxCustomSub()
 
 
 % the following function is not used -- GY
@@ -1133,49 +979,6 @@ for i = 1:length (hemi_regexp)
 end
 %end extract_hemi_idxSub
 
-
-% function [fname] = findMatFileSub(fname, xlsname)
-% %looks for a .mat file that has the root 'fname', which might be in same
-% %folder as Excel file xlsname
-% fnameIn = fname;
-% [pth,nam,ext] = fileparts(fname);
-% if strcmpi('.nii',ext) || strcmpi('.hdr',ext) || strcmpi('.img',ext)%look for MAT file
-%     ext = '.mat';
-%     %fprintf('Excel file %s lists %s, but files should be in .mat format\n',xlsname,fnameIn);
-% else
-%     if exist(fname, 'file') == 2, return; end;
-% end
-% fname = fullfile(pth,[nam '.mat']);
-% if exist(fname, 'file'), return; end;
-% %next - check folder of Excel file
-% [xpth,~,~] = fileparts(xlsname);
-% fname = fullfile(xpth,[nam ext]);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(xpth,[nam '.mat']);
-% if exist(fname, 'file'), return; end;
-% %next check for nii file:
-% fname = findNiiFileSub(fnameIn, xlsname);
-% if exist(fname, 'file'), return; end;
-% fprintf('Unable to find image %s listed in %s: this should refer to a .mat (or .nii) file. (put images in same folder as design file)\n',fnameIn, xlsname);
-% fname = '';
-% %end findMatFileSub()
-
-% function [fname] = findNiiFileSub(fname, dir)
-% [pth,nam,~] = fileparts(fname);
-% fname = fullfile(pth,[nam '.nii']);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(pth,[nam '.hdr']);
-% if exist(fname, 'file'), return; end;
-% if exist(dir,'file') == 7
-%     pth = dir;
-% else
-%     [pth,~,~] = fileparts(dir);
-% end
-% fname = fullfile(pth,[nam '.nii']);
-% if exist(fname, 'file'), return; end;
-% fname = fullfile(pth,[nam '.hdr']);
-% if exist(fname, 'file'), return; end;
-% %findNiiFileSub
 
 function b = isBinomialSub(i)
 %returns true if vector is binomial (less than three distinct values)
@@ -1307,12 +1110,13 @@ end
 s = getfield(s, t{:});
 %end getsubfieldSub()
 
-function [outhdr,outimg] = resliceVolSub(hdr, img)
+function [outhdr,outimg] = resliceVolSub(hdr, img)  
 %reslices image to new resolution and bounding box
 %Example
 % hdr = spm_vol('wT1_P098.nii')
 % img = spm_read_vols(hdr);
 % [hdr,img] = resliceVol(hdr, img)
+disp('function resliceVolSub is being run') %%Anthony Androulakis
 if size(img,4) > 1, error('resliceVol fails with 4D data'); end;
 outhdr = hdr;
 outhdr.mat = [-2 0 0 80; 0 2 0 -114; 0 0 2 -52; 0 0 0 1]; %<- 2mm
@@ -1331,27 +1135,27 @@ nMax = sum(x(:)==max(x(:)));
 isBin = ((nMax + nMin + sum(isnan(x(:)))) == numel(x));
 %end isBinSub
 
-function checkForUpdate(repoPath)
-prevPath = pwd;
-cd(repoPath);
-if exist('.git','dir') %only check for updates if program was installed with "git clone"
-    [s, r] = system('git fetch origin','-echo');
-    if strfind(r,'fatal')
-        warning('Unable to check for updates. Network issue?');
-        cd(prevPath); %CR 8/2016
-        return;
-    end
-    [~, r] = system('git status','-echo');
-    if strfind(r,'behind')
-        if askToUpdate
-            system('git reset --hard HEAD');
-            [~, r] = system('git pull','-echo');
-            showRestartMsg
-        end
-    end
-else %do nothing for now
-    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"\n or "!git clone git clone https://github.com/neurolabusc/%s.git"',mfilename,mfilename));
-end
+%function checkForUpdate(repoPath)
+%prevPath = pwd;
+%cd(repoPath);
+%if exist('.git','dir') %only check for updates if program was installed with "git clone"
+%    [s, r] = system('git fetch origin','-echo');
+%    if strfind(r,'fatal')
+%        warning('Unable to check for updates. Network issue?');
+%        cd(prevPath); %CR 8/2016
+%        return;
+%    end
+%    [~, r] = system('git status','-echo');
+%    if strfind(r,'behind')
+%        if askToUpdate
+%            system('git reset --hard HEAD');
+%            [~, r] = system('git pull','-echo');
+%            showRestartMsg
+%        end
+%    end
+%else %do nothing for now
+%    warning(sprintf('To enable updates run "!git clone git@github.com:neurolabusc/%s.git"\n or "!git clone git clone https://github.com/neurolabusc/%s.git"',mfilename,mfilename));
+%end
 cd(prevPath);
 %end checkForUpdate()
 
