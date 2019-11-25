@@ -17,8 +17,37 @@ function NiiStat(xlsname, roiIndices, modalityIndices,numPermute, pThresh, minOv
 %Examples
 % NiiStat %use graphical interface
 % NiiStat('LIME.xlsx',1,1,0,0.05,1)
-%test
 
+if exist ("OCTAVE_VERSION", "builtin") > 0 %Octave detected
+    language='octave'
+    disp('NiiStat for Octave currently does not support GUI')
+    usesGUI = false; %GUI currently is supported in Octave
+    if isempty(strfind(evalc("pkg list"),'pkg/io')) %install io pkg if DNE
+        disp('Installing io package...')
+        pkg install -forge io %install io package
+        disp('io package successfully installed')
+    end
+    if exist('spm12-r7487')!=7 %install spm for Octave if DNE
+        disp('Installing spm12 for Octave... (this might take a few minutes)')
+        unzip('https://github.com/spm/spm12/archive/r7487.zip',pwd);
+        urlwrite('https://raw.githubusercontent.com/spm/spm-docker/master/octave/spm12_r7487.patch','spm12_r7487.patch');
+        system('patch -p3 -d spm12-r7487 < spm12_r7487.patch');
+        cd spm12-r7487/src
+        system('make PLATFORM=octave');
+        system('make PLATFORM=octave install');
+        cd ../../
+        disp('spm12 for Octave successfully installed')
+    end
+    NiiStatpath=pwd;
+    SPM12path=what('spm12-r7487');
+    pkg load io
+    addpath(NiiStatpath)
+    addpath(SPM12path.path)
+    addpath(strcat(SPM12path.path,'/src'))
+    GUI=[];
+else
+    language='matlab'
+end
 %Added by Roger to ensure right NiiStatGUI cfg file is opened and used
 
 %[filepath, name,ext] = which('NiiStatGUI')
@@ -55,12 +84,16 @@ end
 fprintf('Version 3 March 2017 of %s %s %s\n', mfilename, computer, version);
 ver; %report complete version information, e.g. "Operating System: Mac OS X  Version: 10.11.5 Build: 15F34"
 if ~isempty(strfind(mexext, '32')), warning('Some features like SVM require a 64-bit computer'); end;
-import java.lang.*;
+if language=='matlab'
+    import java.lang.*;
+end
 hemiKey = 0;
 interhemi = false; %% added by GY at RD's request
 statname = '';
-repopath=char(System.getProperty('user.home'));
-checkForUpdate(fileparts(mfilename('fullpath')));
+if language=='matlab'
+    repopath=char(System.getProperty('user.home'));
+    checkForUpdate(fileparts(mfilename('fullpath')));
+end
 %checkForMostRecentMatFiles(repopath)
 
 % updating SPM temportarily disabled by GY because SPM server is down
