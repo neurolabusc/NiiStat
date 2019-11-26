@@ -27,7 +27,11 @@ end
 % read the Excel file into cell arrays
 fprintf(' You will get an error if your Excel file does not have a worksheet named "%s" (case sensitive)\n', worksheetname);
 try
-    [~, txt, raw] = xlsread (xlsname, worksheetname);
+    if (exist ("OCTAVE_VERSION", "builtin") > 0)==0 %if using matlab
+        [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
+    else
+        [~, txt, raw] = xlsread (xlsname, worksheetname);
+    end
 catch
     fprintf('Unable to read worksheet "%s" from "%s"\n',worksheetname, xlsname);
     return;
