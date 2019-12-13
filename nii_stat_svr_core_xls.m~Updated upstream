@@ -46,7 +46,7 @@ addpath(svmdir); %make sure we can find the utility scripts
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     [num, txt] = tabreadSub (xlsname);
 else
-    [num, txt, ~] = xlsread (xlsname); 
+    [num, txt, ~] = xlsread (xlsname);
     %num(:,1) = []; % remove first column (subject name)
 end
 if exist ('deleteCols', 'var')
@@ -62,24 +62,10 @@ if exist ('deleteCols', 'var')
     num(:,deleteCols) = [];
 end
 
-% get list of tag names from the first row of the Excel file
-header_list = txt (1, :);
-% added by GY, Dec 2019
-nuisance_idx = find (cellfun(@(x) x(1)=='*', header_list));
-if ~isempty (nuisance_idx)
-    nuisance_list = header_list{nuisance_idx(1)};
-    for i = 2:length (nuisance_idx)
-        nuisance_list = [nuisance_list ', ' header_list{nuisance_idx(i)}];
-    end
-    fprintf ('Nuisance regressors: %s\n', nuisance_list);
-end
-
-
 className = txt(1,size(txt,2));
 n_subj = size (num, 1);
 n_dim = size (num, 2) - 1; %final column is predictor
 data = num (:, 1:n_dim);
-
 if minUnique > 1 %
     %remove columns with fewer than N number of different values
     [data , good_idx] = columnUniqueThreshSub(data, minUnique);
@@ -111,17 +97,6 @@ else
 end
 labels = num (:, size (num, 2));
 labels = normColSub(labels); %CR 20April2015
-
-% GY, Dec 2019: remove nuisances from the predictor matrix; regress them
-% out of the outcome
-nuisance = data (:, nuisance_idx-1);
-data (:, nuisance_idx-1) = [];
-good_idx = setdiff (good_idx, nuisance_idx-1);
-pred = [ones(size(labels, 1), 1) nuisance];
-beta = pred \ labels;
-residuals = labels - pred*beta;
-labels = residuals;
-
 predicted_labels = zeros(n_subj,1); %pre-allocate memory
 map = zeros(size(data)); %pre-allocate memory
 

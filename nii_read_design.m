@@ -1,4 +1,4 @@
-function [designMat, designUsesNiiImages, CritN] = nii_read_design (xlsname, worksheetname)
+function [designMat, designUsesNiiImages, CritN, nuisanceMat] = nii_read_design (xlsname, worksheetname)
 designUsesNiiImages = false;
 CritN = [];
 if exist(xlsname,'file') ~= 2
@@ -15,9 +15,9 @@ end
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     [dMat, CritN] = nii_tab2mat(xlsname);
 else
-    dMat = nii_xls2mat(xlsname , worksheetname,'', true);
+    [dMat, nuisance] = nii_xls2mat(xlsname , worksheetname,'', true);
     if isempty(dMat)
-        dMat = nii_xls2mat(xlsname , 'Data (2)','', true);
+        [dMat, nuisance] = nii_xls2mat(xlsname , 'Data (2)','', true);
     end
 end
 if isempty(dMat)
@@ -33,6 +33,9 @@ imgpath = fileparts(xlsname);
 numNII = 0; %number of NIfTI files
 numMat = 0; %number of Mat files
 numOK = 0;
+if isempty (nuisance)
+    nuisanceMat = [];
+end
 %designMat = [];
 for i=1:size(dMat,2)
     matname = deblank( dMat(i).(SNames{1}));
@@ -49,6 +52,15 @@ for i=1:size(dMat,2)
         fprintf('Warning: no valid behavioral data for %s\n',matname);
         matname = '';
     end
+    % added by GY: 
+    % all nusiance variables must be present for all participants!
+    % exclude participants with missing nuisance variables (i.e. NaNs)
+    if ~isempty (nuisance) && ~isempty (matname)
+        if sum (structfun (@isnan, nuisance(i))) 
+            fprintf ('Warning: excluding %s because some nuisance regressors are missing\n', matname);
+            matname = '';
+        end
+    end
     if ~isempty(matname)
         [matname] = findMatFileSub(matname,imgpath, xlsname);
         [~, ~, ext] = fileparts(matname);
@@ -61,7 +73,9 @@ for i=1:size(dMat,2)
             dMat(i).(SNames{1}) = matname;
             numOK = numOK + 1;
             designMat(numOK) = dMat(i); %#ok<AGROW>
-
+            if ~isempty (nuisance)
+                nuisanceMat(numOK) = nuisance(i);%#ok<AGROW>
+            end
         end
     end
 end

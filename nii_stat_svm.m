@@ -1,4 +1,4 @@
-function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask, hdr, pThresh, numPermute)
+function nii_stat_svm(les,beh, beh_names, statname, les_names, subj_data, roifname, logicalMask, hdr, pThresh, numPermute, nuisance)
 analyzing_connectome = false;
 voxelwise_analysis = isempty (les_names);
 
@@ -16,6 +16,10 @@ end
 if ~exist('pThresh','var')
     pThresh = 0.05;
 end
+if ~exist('nuisance','var')
+    nuisance = [];
+end
+
 
 
 if numel(les_names) ~= size(les,2) %for connectome analyses
@@ -43,19 +47,27 @@ if ~voxelwise_analysis % if ROI analysis (as opposed to voxelwise)
         return;
     end    
 else
-    bb = unique (les (:));
-    if length (bb) == 2 && bb(1) == 0 && bb(2) == 1 % voxelwise lesion maps
-        % Normalize the lesion maps: divide each (binary) voxel by sqrt(lesion size)
-        % So, each subject's lesion vector has unit norm;
-        % this could help reduce the effect of lesion size.
-        % See Zhang et al., "Multivariate Lesion-Symptom Mapping Using
-        % Support Vector Regression", HBM 2014, section 3.5
-        les = les ./ repmat (sqrt (sum (les, 2)), [1 size(les, 2)]);
-        les (find (isnan (les))) = 0;
-    end
+        % GY, Sept 2019: do nothing (the dTLVC section commented out)
+%     bb = unique (les (:));
+%     if length (bb) == 2 && bb(1) == 0 && bb(2) == 1 % voxelwise lesion maps
+%         % Normalize the lesion maps: divide each (binary) voxel by sqrt(lesion size)
+%         % So, each subject's lesion vector has unit norm;
+%         % this could help reduce the effect of lesion size.
+%         % See Zhang et al., "Multivariate Lesion-Symptom Mapping Using
+%         % Support Vector Regression", HBM 2014, section 3.5
+%         les = les ./ repmat (sqrt (sum (les, 2)), [1 size(les, 2)]);
+%         les (find (isnan (les))) = 0;
+%     end
 end
 
+orig_les = les;
 
+for i = 1:length (les_names)
+    fprintf ('%s\t', les_names{i});
+end
+fprintf ('\n');
+
+    
 if ~exist('statname','var')
     statname = 'anonymous';
 end
@@ -64,14 +76,50 @@ if ~exist('subj_data','var')
 end;
 chDirSub([statname '_svm']);
 diary ([deblank(statname) 'svm.txt']);
-for j = 1:size(beh_names,2) %for each beahvioral variable
+for j = 1:size(beh_names,2) %for each behavioral variable
     beh_name1 = beh_names{j};
     beh1 = beh(:,j);
+    
     if ~voxelwise_analysis
         [fnm, nOK] = tabFileSub(les,beh1, beh_name1,  les_names, subj_data);
     else
         nOK = 1;
     end
+    
+    % GY, Aug 2019: add nuisance regressors
+    % NOT SURE HOW TO HANDLE THE DAMN THING.
+    % For now: regress nuisances out of behavioural data for SVR,
+    % and regress them out of the lesion data for SVM.
+    % Not happy about this solution, will keep thinking.
+    % see the article:
+    % DeMarco, A. T., & Turkeltaub, P. E. (2018). Human brain mapping, 39(11), 4169-4182.
+    if ~isempty (nuisance)
+        if ~nii_isBinary(beh1)
+            pred = [ones(size(beh, 1), 1) nuisance];
+            beta = pred \ beh1;
+            residuals = beh1 - pred*beta;
+            beh1 = residuals;
+            if ~voxelwise_analysis
+                tabFileSub(les,beh1, ['residuals_' beh_name1], les_names, subj_data);
+            end
+        else
+            les = orig_les;
+            pred = [ones(size(beh, 1), 1) nuisance];
+            beta = pred \ les;
+            residuals = les - pred*beta;
+            les = residuals;
+        end
+    end
+    %%%%
+    
+    % another way: adding nuisance to the model
+%     nuisance_idx = [];
+%     if ~isempty (nuisance)
+%         les = [les nuisance];
+%         nuisance_idx = size(orig_les, 2)+1:size(les, 2);
+%     end
+%     
+    
     
     if nOK < 1
         fprintf('Skipping SVM/SVR: no valid data\n');
@@ -80,25 +128,32 @@ for j = 1:size(beh_names,2) %for each beahvioral variable
         if nii_isBinary(beh1)
             % do 100 splits for voxelwise SVM, and 500 splits for ROI SVM
             if voxelwise_analysis
-                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 100); 
+                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 100);
+%                loadingMap{1}(nuisance_idx) = [];
             else
-                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 500); %do not specify thresholds: svm_core will select
+                [~, loadingMap{1}, ~, p] = nii_stat_svm_core(les, beh1, 500, 2); %do not specify thresholds: svm_core will select
+%                loadingMap{1}(nuisance_idx) = [];
+                
                 out_name{1} = [statname '_' deblank(beh_name1) '_svm'];
                 reportLoadingsSub (loadingMap{1}, les_names, deblank (beh_name1), p, 1);
             end
         else
             if voxelwise_analysis
                 [~, loadingMap{1}, ~, p] = nii_stat_svr_core (les, beh1, deblank (beh_name1), 0);
+%                loadingMap{1}(nuisance_idx) = [];
+                
             else
                 clipping_list = [0 1 -1];
                 clipping_str = {'2tail' '1tailPOS' '1tailNEG'};
                 for k = 1:length(clipping_list)
-                    [~, loadingMap{k}, ~, p] = nii_stat_svr_core(les, beh1, deblank (beh_name1), clipping_list(k)); %compute regression
+                    [~, loadingMap{k}, ~, p] = nii_stat_svr_core(les, beh1, deblank (beh_name1), clipping_list(k), 2); %compute regression
+%                   loadingMap{k}(nuisance_idx) = [];
+                    
                     out_name{k} = [statname '_' deblank(beh_name1) '_svr_' clipping_str{k}];
                     reportLoadingsSub (loadingMap{k}, les_names, deblank (beh_name1), p, 0);
                 end
             end
-        end        
+        end
         if ~isempty (loadingMap{1}) % if analysis didn't work, loadingMap will be empty --GY
             if exist('roifname','var') && ~isempty(roifname)
                 for k = 1:length(loadingMap) % length is either 1 for SVM and vox SVR, or 3 for ROI SVR
@@ -161,10 +216,10 @@ for i = 1:n_subj
     if  ~isfinite(std(les(i,:)))
         fprintf('%s WARNING: Skipping %s due to bogus data (NaN)\n', mfilename, subj_data{i}.filename);
     else
-        if (std(les(i,:)) == 0) 
+         if (std(les(i,:)) == 0) 
             fprintf('%s WARNING: No variability in imaging data for %s (all regions have an intensity of %g)\n', mfilename, subj_data{i}.filename, les(i,1));
         end
-        if ~isempty('subj_data')
+        if ~isempty(subj_data)
            fprintf(fid,'%s\t',subj_data{i}.filename); 
         else
             fprintf(fid,'%s\t',num2str(i));

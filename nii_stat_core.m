@@ -1,5 +1,4 @@
-%function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, kOnlyAnalyzeRegionsDamagedInAtleastNSubjects,statname, roi_names, hdrTFCE, voxMask)
-function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE)
+function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask,statname, roi_names, hdrTFCE, nuisance)
 %Generates statistical tests. Called by the wrappers nii_stat_mat and nii_stat_val
 % les    : map of lesions/regions one row per participant, one column per voxel
 % beh    : matrix of behavior, one row per participant, one column per condition
@@ -21,6 +20,7 @@ function nii_stat_core(les,beh, beh_names,hdr, kPcrit, kNumRandPerm, logicalMask
 % statname : (optional) results saved to disk will include this name. If not provided this becomes 'anonymous'
 % roi_names : (optional) if one per column of les, then a labeled table is produced
 % hdrTFCE   : (optional, voxelwise analyses only) - dimensions of volume
+% nuisance: (optional) matrix of nuisance variables
 %Examples:
 %     five0five1 = [0 0 0 0 0 1 1 1 1 1]';
 %     ascend1to10 = [1:10]';
@@ -57,6 +57,9 @@ if ~exist('statname','var')
 end
 if ~exist('hdrTFCE','var')
     hdrTFCE = [];
+end
+if ~exist('nuisance','var')
+    nuisance = [];
 end
 
 if size(les,1) ~= size(beh,1)
@@ -118,7 +121,7 @@ if (kNumRandPerm < -500) ||  (kNumRandPerm > 0) %if will estimate thresholds wit
 end
 if (kNumRandPerm < -1) && (size(beh,2) <= 1) %special case: nuisance regressors which requires multiple behaviors
     error('Error: only one behavioral variable provided: unable to control for nuisance regressors (solution: either provide more behavioral data or specify positive number of permutations');
-elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regressors.
+elseif (kNumRandPerm < -1) && (size(beh,2) > 1) %special case: nuisance regressors with permutations.
     X1 = [beh, ones(numObs,1)];%add constant column for intercept
     global global_flContrast
     if isempty(global_flContrast)
@@ -159,9 +162,18 @@ elseif isBinomialBehav && isBinomialLes %binomial data
 else %behavior and/or lesions is continuous
 	fprintf('Computing glm (pooled-variance t-test, linear regression) for %d regions/voxels with analyzing %d behavioral variables (positive Z when increased image brightness correlates with increased behavioral score).\n',length(good_idx),size(beh,2));
     
-    for i = 1: size(beh,2)
-        [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
-    end;
+    % GY, Aug 2019: nuisance regressors
+    if isempty (nuisance)
+        % the good old way
+        for i = 1: size(beh,2)
+            [z(:,i), threshMin(i), threshMax(i)] = glm_permSub(les,beh(:,i), kNumRandPerm, kPcrit, good_idx, hdrTFCE);
+        end;
+    else
+        % the new way, with nuisance regressors
+        for i = 1: size(beh,2)
+            [z(:,i), threshMin(i), threshMax(i)] = glm_permSub_nuisance(les,beh(:,i), nuisance, kNumRandPerm, kPcrit, good_idx, hdrTFCE);
+        end;    
+    end
 end
 %global global_powerMap %option to save parameters for power analysis
 %if ~isempty(global_powerMap) && global_powerMap
@@ -661,6 +673,86 @@ threshMax = permThreshHighSub (peak, kPcrit);
 threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
 threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
 %end glm_permSub()
+
+function [uncZ, threshMin, threshMax] = glm_permSub_nuisance(Y, X, nuisance, nPerms, kPcrit, good_idx, hdrTFCE)
+%returns uncorrected z-score for all voxels in Y given single column
+%predictor X and a matrix of nuisance regressors in Z
+% Y: volume data
+% X: single column predictor
+%if either X or Y is binomial, results are pooled variance t-test, else correlation coefficient
+% nPerms: Number of permutations to compute
+% kPcrit: Critical threshold
+%Example
+% glm_t([1 1 0 0 0 1; 0 0 1 1 1 0]',[1 2 3 4 5 6]') %pooled variance t-test
+%
+%inspired by Ged Ridgway's glm_perm_flz
+if ~exist('nPerms','var')
+    nPerms = 0;
+end
+if ~exist('kPcrit','var')
+    kPcrit = 0.05;
+end
+% Basics and reusable components
+[n f] = size(X); %rows=observations, columns=factors
+[nY v] = size(Y); %#ok<NASGU> v is number of tests/voxels
+if (f ~= 1), error('glm_permSub is for one column of X at a time (transpose?)'); end;
+if nY ~= n, error('glm_permSub X and Y data sizes are inconsistent'); end
+X = [X nuisance ones(size(X,1),1)];
+c = [1 zeros(1, size(nuisance, 2)) 0]'; %contrast (incl. nuisance regressors)
+df = n - rank(X);
+pXX = pinv(X)*pinv(X)'; % = pinv(X'*X), which is reusable, because
+pX  = pXX * X';         % pinv(P*X) = pinv(X'*P'*P*X)*X'*P' = pXX * (P*X)'
+% Original design (identity permutation)
+t = glm_quick_t(Y, X, pXX, pX, df, c);
+if any(~isfinite(t(:)))
+    warning('glm_permSub zeroed NaN t-scores'); %CR 3Oct2016
+    t(~isfinite(t))= 0; %CR patch
+end
+uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
+if nPerms < 2
+    threshMin = -Inf;
+    threshMax = Inf;
+    return
+end
+if numel(hdrTFCE) == 3
+   img = zeros(hdrTFCE);
+   img(good_idx) = t;
+   img = tfceMex(img, 100);
+   t = img(good_idx);
+   uncZ = spm_t2z(t,df); %report Z scores so DF not relevant
+end
+% Things to track over permutations
+peak = nan(nPerms,1);
+nadir = nan(nPerms,1);
+peak(1) = max(t);
+nadir(1) = min(t);
+perm5pct = round(nPerms * 0.05);
+startTime = tic;
+for p = 2:nPerms
+    if p == perm5pct
+        fprintf('Expected permutation time is %f seconds\n',toc(startTime)*20)
+    end
+    Xp  = X(randperm(n), :);
+    pXX = pinv(Xp)*pinv(Xp)'; %??? supposedly not require- reusable?
+    pXp = pXX * Xp'; % = pinv(Xp)
+    tp  = glm_quick_t(Y, Xp, pXX, pXp, df, c);
+    if numel(hdrTFCE) == 3
+       img = zeros(hdrTFCE);
+       img(good_idx) = tp;
+       img = tfceMex(img, 100);
+       tp = img(good_idx);
+    end
+    peak(p) = max(tp(:));
+    nadir(p) = min(tp(:));
+end
+threshMin = permThreshLowSub (nadir, kPcrit);
+threshMax = permThreshHighSub (peak, kPcrit);
+threshMin = spm_t2z(threshMin,df); %report Z scores so DF not relevant
+threshMax = spm_t2z(threshMax,df); %report Z scores so DF not relevant
+%end glm_permSub()
+
+
+
 
 function savePowerSub(les, beh ,good_idx, hdr, roi_names, beh_names)
 %save components required for a power analysis

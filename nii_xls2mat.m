@@ -1,4 +1,4 @@
-function [stat] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
+function [stat, nuisance] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
 %Parses behavioral data from a xls or xlsx format worksheet
 %  xlsname : name of Excel file to open (.xls or .xlsx)
 %  worksheetname : name of relevant sheet (page) in Excel file
@@ -12,6 +12,7 @@ function [stat] = nii_xls2mat(xlsname, worksheetname, tagname, firstColumnText)
 % s = nii_xls2mat('LIMEpf2.xlsx','Data (2)') %read all rows!
 
 stat = [];
+nuisance = [];
 if exist(xlsname,'file') ~= 2
     fprintf('Unable to find file named "%s"\n',xlsname);
     return
@@ -59,6 +60,15 @@ else
 end
 % get list of tag names from the first row of the Excel file
 header_list = txt (1, :);
+% added by GY, Sep 2019
+nuisance_idx = find (cellfun(@(x) x(1)=='*', header_list));
+if ~isempty (nuisance_idx)
+    nuisance_list = header_list{nuisance_idx(1)};
+    for i = 2:length (nuisance_idx)
+        nuisance_list = [nuisance_list ', ' header_list{nuisance_idx(i)}];
+    end
+    fprintf ('Nuisance regressors: %s\n', nuisance_list);
+end
 for i = 1:length (header_list)
     h = header_list{i}; %header
     if ~isempty(h)
@@ -77,10 +87,15 @@ for i = 1:length (header_list)
                 else
                     n = str2double(v);
                 end
-                if isnan(n)
-                    stat(j).(h) = v; %not numeric, e.g. 'anomic'
+                if ismember (i, nuisance_idx)
+                    nuisance_name = h (2:length(h));% get rid of the leading asterisk
+                    nuisance(j).(nuisance_name) = n; % assumption: nuisance variables are always numeric
                 else
-                    stat(j).(h) = n; %numeric value, e.g. '0.82'
+                    if isnan(n)
+                        stat(j).(h) = v; %not numeric, e.g. 'anomic'
+                    else
+                        stat(j).(h) = n; %numeric value, e.g. '0.82'
+                    end
                 end
             end
         end

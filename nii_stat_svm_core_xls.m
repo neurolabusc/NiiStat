@@ -49,10 +49,23 @@ addpath(svmdir); %make sure we can find the utility scripts
 if strcmpi(x,'.tab') || strcmpi(x,'.txt')  || strcmpi(x,'.val')
     num = tabreadSub (xlsname);
 else
-    num = xlsread (xlsname);
+    [num, txt, raw] = xlsread (xlsname);
 end
 n_dim = size (num, 2) - 1;
 data = num (:, 1:n_dim);
+
+% get list of tag names from the first row of the Excel file
+header_list = txt (1, :);
+% added by GY, Dec 2019
+nuisance_idx = find (cellfun(@(x) x(1)=='*', header_list));
+if ~isempty (nuisance_idx)
+    nuisance_list = header_list{nuisance_idx(1)};
+    for i = 2:length (nuisance_idx)
+        nuisance_list = [nuisance_list ', ' header_list{nuisance_idx(i)}];
+    end
+    fprintf ('Nuisance regressors: %s\n', nuisance_list);
+end
+
 
 %for aalcat we may want to remove one hemisphere
 %data(:,1:2:end)=[]; % Remove odd COLUMNS: left in AALCAT: analyze right
@@ -100,6 +113,16 @@ end
 %fprintf('Class labels range from %g to %g, values of %g or less will be group0, values of %g or more will be group1\n', min(class_labels), max(class_labels), thresholdLo, thresholdHi);
 %fprintf('Processing the command line: \n');
 fprintf(' %s (''%s'', %d, %g, %g, %g, %g);\n', mfilename, xlsname, normRowCol, thresholdLo, thresholdHi, verbose, islinear);
+
+% GY, Dec 2019: remove nuisances from the predictor matrix; regress them
+% out of the predictors
+nuisance = data (:, nuisance_idx-1);
+data (:, nuisance_idx-1) = [];
+good_idx = setdiff (good_idx, nuisance_idx-1);
+pred = [ones(size(class_labels, 1), 1) nuisance];
+beta = pred \ data;
+residuals = data - pred*beta;
+data = residuals;
 
 [class_labels , data] = binarySub(class_labels, data, thresholdLo, thresholdHi);
 class1_idx = find (class_labels == 1)';

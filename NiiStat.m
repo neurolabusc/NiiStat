@@ -84,7 +84,7 @@ if (strcmpi('ver',xlsname)), return; end; %nii_stat('ver') cause software to rep
 if exist(xlsname,'file') ~= 2
     error('Unable to find Excel file named %s\n',xlsname);
 end
-[designMat, designUsesNiiImages, minOverlapValFile] = nii_read_design (xlsname);
+[designMat, designUsesNiiImages, minOverlapValFile, nuisanceMat] = nii_read_design (xlsname);
 if ~exist('minOverlap','var')
     if isempty(minOverlapValFile)
         minOverlap = 0;
@@ -132,7 +132,7 @@ if ~exist('modalityIndices','var') %have user manually specify settings
         'Minimum overlap (1..numSubj):',...
         ['ROI (0=voxels ' sprintf('%s',kROInumbers) ' negative for correlations [multi OK]'],...
         ['Modality (' sprintf('%s',kModalityNumbers) ') [multiple OK]'],...
-        'Special (1=explicit voxel mask, 2=regress lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only; 12=interhemispheric) [multi OK]',...
+        'Special (1=explicit voxel mask, 2=control for lesion volume, 3=de-skew, 4=include WM/CSF connectivity, 5=customROI, 6=TFCE, 7=reportROImeans, 8=SVM, 9=LowRes, 10=LH only, 11=RH only; 12=interhemispheric) [multi OK]',...
         'Statistics name [optional]'
         };
     dlg_title = ['Options for analyzing ' xlsname];
@@ -258,7 +258,7 @@ for i = 1: length(modalityIndices) %for each modality
         end
         fprintf('Analyzing roi=%d, modality=%d, permute=%d, %sdesign=%s\n',roiIndex, modalityIndex,numPermute,specialStr, xlsname);
         %Roger added GUI as last argument
-        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI); %%GY
+        processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, maskName, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI, nuisanceMat); %%GY
     end
 end
 %end nii_stat_mat()
@@ -333,7 +333,7 @@ nii = strcmpi('.voi',ext) || strcmpi('.hdr',ext) || strcmpi('.nii',ext);
 % %end readDesign()
 
 %Roger added GUI as input argument
-function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI) %%GY
+function processExcelSub(designMat, roiIndex, modalityIndex,numPermute, pThresh, minOverlap, regressBehav, mask_filename, GrayMatterConnectivityOnly, deSkew, customROI, doTFCE, reportROIvalues, xlsname, kROIs, doSVM, doVoxReduce, hemiKey, interhemi, statname,GUI, nuisanceMat) %%GY
 %GrayMatterConnectivityOnly = true; %if true, dti only analyzes gray matter connections
 %kROIs = strvcat('bro','jhu','fox','tpm','aal','catani'); %#ok<*REMFF1>
 %kModalities = strvcat('lesion','cbf','rest','i3mT1','i3mT2','fa','dti','md'); %#ok<REMFF1> %lesion, 2=CBF, 3=rest
@@ -495,6 +495,9 @@ for i = 1:size(matnames,1)
             end
             data.filename = in_filename;
             data.behav = designMat(i); % <- crucial: we inject behavioral data from Excel file!
+            if ~isempty (nuisanceMat)
+                data.nuisance = nuisanceMat(i);
+            end
             subj_data{idx} = data; %#ok<AGROW>
         else
             %dat = load (in_filename, subfield);
@@ -525,6 +528,9 @@ for i = 1:size(matnames,1)
                 idx = idx + 1;
                 subj_data{idx}.filename = in_filename; %#ok<AGROW>
                 subj_data{idx}.behav = designMat(i); %#ok<AGROW>
+                if ~isempty (nuisanceMat)
+                    subj_data{idx}.nuisance = nuisanceMat(i);%#ok<AGROW>
+                end
                 if isempty(voxMask)
                     %dat.(ROIfield).mean = normSub(dat.(ROIfield).mean, cbfMean, cbfStd);
                     subj_data{idx}.(ROIfield)  = dat.(ROIfield); %#ok<AGROW>
@@ -580,6 +586,7 @@ end
 % make sure all the subjects have all numeric fields
 beh = zeros(n_subj,n_beh);
 beh(:) = nan;
+nuisance = [];
 for i = 1 : n_subj
     for j = 1:n_beh %length(beh_names)
         if isfield (subj_data{i}.behav, beh_names{j})
@@ -596,7 +603,14 @@ for i = 1 : n_subj
             disp (['Warning! Subject ' subj_data{i}.filename ' does not have a field ' beh_names{j}]);
         end
     end
+    
+    if ~isempty (nuisanceMat)
+        nuisance (i, :) = structfun (@(x) x, subj_data{i}.nuisance); %#ok<AGROW>
+    end
+    
 end
+   
+
 if regressBehav
     vol = zeros(n_subj,1);
     vol(:) = nan;
@@ -610,23 +624,25 @@ if regressBehav
         end;
     end;
     if sum(~isnan(vol(:))) > 1
-        for i = 1:n_beh
-            %beh_names1 = deblank(beh_names(i));
-            beh1 = beh(:,i);
-            good_idx = intersect (find(~isnan(beh1)), find(~isnan(vol)));
-            dat = beh1(good_idx)'; %behavior is the data
-            reg = vol(good_idx)'; %lesion volume is our regressor
-            preSD = std(dat);
-            if ~isnan(std(dat)) && (preSD ~= 0) && (std(reg) ~= 0) %both data and regressor have some variability
-                G = ones (2, size(dat,2)); %constant
-                G (2, :) = reg; % linear trend
-                G_pseudoinv = G' / (G * G'); %aka: G_pseudoinv = G' * inv (G * G');
-                Beta = dat * G_pseudoinv;
-                dat = dat - Beta*G; %mean is zero
-                fprintf('Regressing %s with lesion volume reduces standard deviation from %f to %f\n',char(deblank(beh_names(i))),preSD, std(dat) );
-                beh(good_idx,i) = dat;
-            end
-        end
+        nuisance = [nuisance vol];
+         
+%         for i = 1:n_beh
+%             %beh_names1 = deblank(beh_names(i));
+%             beh1 = beh(:,i);
+%             good_idx = intersect (find(~isnan(beh1)), find(~isnan(vol)));
+%             dat = beh1(good_idx)'; %behavior is the data
+%             reg = vol(good_idx)'; %lesion volume is our regressor
+%             preSD = std(dat);
+%             if ~isnan(std(dat)) && (preSD ~= 0) && (std(reg) ~= 0) %both data and regressor have some variability
+%                 G = ones (2, size(dat,2)); %constant
+%                 G (2, :) = reg; % linear trend
+%                 G_pseudoinv = G' / (G * G'); %aka: G_pseudoinv = G' * inv (G * G');
+%                 Beta = dat * G_pseudoinv;
+%                 dat = dat - Beta*G; %mean is zero
+%                 fprintf('Regressing %s with lesion volume reduces standard deviation from %f to %f\n',char(deblank(beh_names(i))),preSD, std(dat) );
+%                 beh(good_idx,i) = dat;
+%             end
+%         end
     end
 end %if regressBehav - regress behavioral data using lesion volume
 
@@ -1036,10 +1052,10 @@ if sum(isnan(beh(:))) > 0
         %end
 
         if doSVM
-            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr, pThresh, numPermute);
+            nii_stat_svm(les1, beh1, beh_names1,statname, les_names, subj_data, roiName, logicalMask1, hdr, pThresh, numPermute, nuisance);
         else
             %nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, minOverlap,statname, les_names,hdrTFCE, voxMask);
-            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE);
+            nii_stat_core(les1, beh1, beh_names1,hdr, pThresh, numPermute, logicalMask1,statname, les_names,hdrTFCE, nuisance);
         end
 
 %         diary off
@@ -1054,9 +1070,9 @@ else
     %les_names(2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     %les(:,2:2:end)=[]; % Remove even COLUMNS: right in AALCAT: analyze left
     if doSVM
-        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr, pThresh, numPermute);
+        nii_stat_svm(les, beh, beh_names, statname, les_names, subj_data, roiName, logicalMask, hdr, pThresh, numPermute, nuisance);
     else
-        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE);
+        nii_stat_core(les, beh, beh_names,hdr, pThresh, numPermute, logicalMask,statname, les_names, hdrTFCE, nuisance);
     end
 end
 
@@ -1131,6 +1147,7 @@ hemi_idx = [];
 for i = 1:length (hemi_regexp)
     hemi_idx = [hemi_idx; find(cellfun(@length, regexp (labels, hemi_regexp{i})))];
 end
+hemi_idx = unique (hemi_idx);
 %end extract_hemi_idxSub
 
 
