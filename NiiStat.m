@@ -967,7 +967,7 @@ end
 
 %%%% GY: moved min_overlap selection from nii_stat_core
 %next: identify which voxels/regions should be analyzed
-bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)==0)); %eliminate voxels/regions with no variability
+bad_idx = union (find (isnan (sum (abs(les), 1))), find(var(les,0,1)<eps)); %eliminate voxels/regions with no variability
 if minOverlap > 0  %isBinomialLes
     bad_idx = union (bad_idx, find (sum ((les ~= 0), 1) < minOverlap)); %eliminate voxels/regions with no variability
 end
