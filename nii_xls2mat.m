@@ -20,13 +20,19 @@ end
 if ~exist('firstColumnText', 'var')
     firstColumnText = false;
 end
-if verLessThan('matlab', '7.14')
-	fprintf('You are running an old version of Matlab that has a fragile xlsread. If the script crashes, use Excel to save as an Excel 5.0/''95 format file\n');
+if (exist ("OCTAVE_VERSION", "builtin") > 0)==0 %if using matlab
+    if verLessThan('matlab', '7.14')
+	    fprintf('You are running an old version of Matlab that has a fragile xlsread. If the script crashes, use Excel to save as an Excel 5.0/''95 format file\n');
+    end
 end
 % read the Excel file into cell arrays
 fprintf(' You will get an error if your Excel file does not have a worksheet named "%s" (case sensitive)\n', worksheetname);
 try
-    [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
+    if (exist ("OCTAVE_VERSION", "builtin") > 0)==0 %if using matlab
+        [~, txt, raw] = xlsread (xlsname, worksheetname,'','basic');
+    else
+        [~, txt, raw] = xlsread (xlsname, worksheetname);
+    end
 catch
     fprintf('Unable to read worksheet "%s" from "%s"\n',worksheetname, xlsname);
     return;
